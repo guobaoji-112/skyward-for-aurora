@@ -95,6 +95,11 @@ pub fn prepare_hardware_directory(wanted: &[String]) -> Result<()> {
         .with_context(|| format!("the installed system carries no {RUNTIME_BUNDLE}, which holds the loader its own programs ask for"))?;
     let dir = loader.parent().expect("the loader is in a directory");
     fs::create_dir_all(dir).with_context(|| format!("make {}", dir.display()))?;
+    // Made under the recovery's own umask the folder is root's alone, and
+    // the programs that ask for this loader run as the users their init
+    // scripts name: as the system's own folder is, it is open to all.
+    fs::set_permissions(dir, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+        .with_context(|| format!("open {} to every user", dir.display()))?;
     if loader.exists() {
         fs::remove_file(loader).with_context(|| format!("take away {}", loader.display()))?;
     }
@@ -104,11 +109,24 @@ pub fn prepare_hardware_directory(wanted: &[String]) -> Result<()> {
         std::os::unix::fs::symlink(HARDWARE_DRIVER_NODE, driver)
             .with_context(|| format!("point {HARDWARE_DRIVER} at {HARDWARE_DRIVER_NODE}"))?;
     }
+    // The system's own init opens the driver to every program, as it does
+    // /dev/binder; a recovery's, which uses none of it, leaves it root's
+    // alone, and the directory and the services that register with it run
+    // as the users their init scripts name.
+    fs::set_permissions(driver, std::os::unix::fs::PermissionsExt::from_mode(0o666))
+        .with_context(|| format!("open {HARDWARE_DRIVER} to every program"))?;
     let from = Path::new(SERVICE_LABELS);
     let into = Path::new(RECOVERY_LABELS).join(from.file_name().expect("a named file"));
     fs::create_dir_all(RECOVERY_LABELS).with_context(|| format!("make {RECOVERY_LABELS}"))?;
+    // The directory reads both of these as the user its init script names,
+    // and what the recovery makes under its own umask is root's alone: they
+    // are given the modes the system's own copies have.
+    fs::set_permissions(RECOVERY_LABELS, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+        .with_context(|| format!("open {RECOVERY_LABELS} to every user"))?;
     fs::copy(from, &into).with_context(|| format!("copy {} to {}", from.display(), into.display()))?;
     fs::write(RECOVERY_MANIFEST, describe_hardware(wanted)?).with_context(|| format!("write {RECOVERY_MANIFEST}"))?;
+    fs::set_permissions(RECOVERY_MANIFEST, std::os::unix::fs::PermissionsExt::from_mode(0o644))
+        .with_context(|| format!("let every user read {RECOVERY_MANIFEST}"))?;
     // The directory turns itself off when it cannot find its own
     // description, and a run of it before this was written may have left
     // that behind.
@@ -185,10 +203,19 @@ fn image(file: &Path) -> Result<(u64, u64)> {
 pub fn publish_descriptions(wanted: &[String], files: &[String]) -> Result<usize> {
     let into = Path::new(RECOVERY_DESCRIPTIONS);
     fs::create_dir_all(into).with_context(|| format!("make {}", into.display()))?;
+    // Both directories read these as the users their init scripts name,
+    // and what the recovery makes under its own umask is root's alone: the
+    // folder and each description are given the modes the system's own
+    // copies have.
+    fs::set_permissions(into, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+        .with_context(|| format!("open {} to every user", into.display()))?;
     let mut copied = 0;
     let mut take = |from: &Path, text: &str| -> Result<()> {
         let name = from.file_name().with_context(|| format!("{} names no file", from.display()))?;
-        fs::write(into.join(name), as_framework(text)).with_context(|| format!("copy {}", from.display()))?;
+        let to = into.join(name);
+        fs::write(&to, as_framework(text)).with_context(|| format!("copy {}", from.display()))?;
+        fs::set_permissions(&to, std::os::unix::fs::PermissionsExt::from_mode(0o644))
+            .with_context(|| format!("let every user read {}", to.display()))?;
         copied += 1;
         Ok(())
     };

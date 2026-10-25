@@ -54,6 +54,11 @@ pub struct DeviceConfig {
     /// libraries it needs.
     #[serde(default)]
     pub logd: Option<Logd>,
+    /// Files the phone's own init hands to an account as it boots, before
+    /// the programs that open them start; a recovery runs none of init's
+    /// boot actions.
+    #[serde(default)]
+    pub owners: Vec<Owners>,
     #[serde(default)]
     pub wipe: Wipe,
     #[serde(default)]
@@ -218,6 +223,18 @@ pub struct Logd {
     /// Libraries of the installed system it loads that the recovery's own
     /// library folder lacks, put there before it is started.
     pub libraries: Vec<String>,
+}
+
+/// Files the phone's own init hands to one account as it boots, each given
+/// the same mode, as a run of its chown and chmod lines does: device nodes,
+/// and the kernel's switches that the phone's own programs open.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Owners {
+    pub user: String,
+    pub group: String,
+    /// The mode init's chmod lines give them, written as an octal number.
+    pub mode: u32,
+    pub paths: Vec<String>,
 }
 
 /// A name as each language the pages speak writes it: Chinese in
@@ -521,6 +538,18 @@ impl DeviceConfig {
                 ensure!(path.is_absolute() && plain && path.file_name().is_some(), "[logd] libraries: {library} is not an absolute path to a file");
             }
         }
+        for owners in &cfg.owners {
+            for name in [&owners.user, &owners.group] {
+                ensure!(!name.is_empty() && !name.contains(char::is_whitespace), "[[owners]] {name:?} is not an account's name");
+            }
+            ensure!(owners.mode <= 0o7777, "[[owners]] mode {:o} is not a file's mode", owners.mode);
+            ensure!(!owners.paths.is_empty(), "[[owners]] for {}:{} names no file", owners.user, owners.group);
+            for file in &owners.paths {
+                let path = Path::new(file);
+                let plain = path.components().all(|c| matches!(c, std::path::Component::RootDir | std::path::Component::Normal(_)));
+                ensure!(path.is_absolute() && plain && path.file_name().is_some(), "[[owners]] paths: {file} is not an absolute path to a file");
+            }
+        }
         if let Some(stock) = &cfg.stock {
             let name = stock.package.rsplit('/').next().unwrap_or_default();
             ensure!(
@@ -615,6 +644,20 @@ mod tests {
         for bad in ["lib64/libcap.so", "/", "/mnt/system/../lib64/libcap.so", ""] {
             assert!(with(bad).is_err(), "{bad} is refused");
         }
+    }
+
+    #[test]
+    fn files_handed_over_name_their_accounts_a_mode_and_absolute_paths() {
+        let with = |body: &str| DeviceConfig::parse(&format!("[device]\ncodename = \"x\"\n[[owners]]\n{body}\n"));
+        let ok = with("user = \"system\"\ngroup = \"system\"\nmode = 0o664\npaths = [\"/dev/xiaomi-touch\"]").unwrap();
+        assert_eq!(ok.owners, [Owners { user: "system".into(), group: "system".into(), mode: 0o664, paths: vec!["/dev/xiaomi-touch".into()] }]);
+        assert!(with("user = \"system\"\ngroup = \"system\"\nmode = 0o664\npaths = []").is_err(), "no file");
+        assert!(with("user = \"sys tem\"\ngroup = \"system\"\nmode = 0o664\npaths = [\"/dev/a\"]").is_err());
+        assert!(with("user = \"system\"\ngroup = \"system\"\nmode = 0o17777\npaths = [\"/dev/a\"]").is_err(), "not a file's mode");
+        for bad in ["dev/a", "/", "/sys/../dev/a"] {
+            assert!(with(&format!("user = \"system\"\ngroup = \"system\"\nmode = 0o664\npaths = [\"{bad}\"]")).is_err(), "{bad} is refused");
+        }
+        assert!(DeviceConfig::parse("[device]\ncodename = \"x\"\n").unwrap().owners.is_empty(), "a phone may need none");
     }
 
     #[test]
@@ -811,6 +854,12 @@ mod tests {
         assert_eq!((cfg.display.width, cfg.display.height, cfg.display.density), (1440, 3200, 560));
         assert_eq!(cfg.modules.load, ["fts_touch_spi"]);
         assert!(cfg.touch.writes.is_empty(), "its own touch processing runs");
+        let [touch_owners] = &cfg.owners[..] else { panic!("one run of the touch layer's files") };
+        assert_eq!((touch_owners.user.as_str(), touch_owners.group.as_str(), touch_owners.mode), ("system", "system", 0o664));
+        assert!(
+            touch_owners.paths.iter().any(|p| p == "/dev/xiaomi-touch"),
+            "the touch processing, run as system, opens the touch layer's node"
+        );
         assert!(cfg.firmware.is_none(), "its recovery mounts the modem partition itself");
         let paths: Vec<&str> = cfg.services.iter().map(|s| s.path.as_str()).collect();
         assert_eq!(

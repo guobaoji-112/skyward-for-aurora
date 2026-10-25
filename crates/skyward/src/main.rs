@@ -467,8 +467,9 @@ fn load_modules(cfg: &DeviceConfig, names: &[String]) -> Result<Vec<PathBuf>> {
 /// Start the recovery's own logd where it needs libraries of the installed
 /// system, make the phone's firmware reachable to its drivers, mount the
 /// partitions its own programs and drivers use where it mounts them, load
-/// the configured kernel modules and start the phone's own programs, read
-/// from the partitions just mounted: on the 13 Ultra, the touchscreen
+/// the configured kernel modules, hand the files the phone's init hands
+/// over as it boots to their accounts, and start the phone's own programs,
+/// read from the partitions just mounted: on the 13 Ultra, the touchscreen
 /// driver and the touch processing. Of the programs the configuration
 /// names, only those this phone's build of the hardware runs are started.
 #[cfg(target_os = "android")]
@@ -499,6 +500,10 @@ fn bring_up(cfg: &DeviceConfig, slot: skyward_vab::Slot) -> Result<()> {
     for path in load_modules(cfg, &cfg.modules.load)? {
         skyward_sys::kmsg(&format!("loaded {}", path.display()))?;
     }
+    if !cfg.owners.is_empty() {
+        let handed = hand_over(&cfg.owners)?;
+        skyward_sys::kmsg(&format!("{handed} of the phone's own files handed to the accounts its init gives them"))?;
+    }
     let hardware: Vec<String> = services.iter().filter_map(|s| s.ready_hardware_service.clone()).collect();
     if !hardware.is_empty() {
         secure::prepare_hardware_directory(&hardware)?;
@@ -522,6 +527,29 @@ fn bring_up(cfg: &DeviceConfig, slot: skyward_vab::Slot) -> Result<()> {
     }
     services::start(&services, libraries.as_deref())?;
     agree_on_the_notes_key(&registering)
+}
+
+/// Give each file the phone's own init hands over as it boots to the
+/// account it names, with the mode it gives, as its chown and chmod lines
+/// do. The files are the ones the modules just loaded made, which the
+/// phone's own programs open as those accounts.
+#[cfg(target_os = "android")]
+fn hand_over(owners: &[skyward_config::Owners]) -> Result<usize> {
+    use skyward_sys::ueventd;
+    use std::os::unix::fs::PermissionsExt;
+    let known = ueventd::accounts(&ueventd::PASSWD_FILES.iter().chain(&ueventd::GROUP_FILES).copied().collect::<Vec<_>>());
+    let id = |name: &str| ueventd::account(&known, name).with_context(|| format!("the phone has no account named {name}"));
+    let mut handed = 0;
+    for run in owners {
+        let (uid, gid) = (id(&run.user)?, id(&run.group)?);
+        for path in &run.paths {
+            std::os::unix::fs::chown(path, Some(uid), Some(gid)).with_context(|| format!("give {path} to {}:{}", run.user, run.group))?;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(run.mode))
+                .with_context(|| format!("give {path} the mode {:o}", run.mode))?;
+            handed += 1;
+        }
+    }
+    Ok(handed)
 }
 
 /// The folder the recovery's own programs load their libraries from.
