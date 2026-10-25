@@ -33,6 +33,21 @@ Skyward is a recovery written in Rust, from scratch.
 | Xiaomi 17 Ultra | `nezha` | OS4.0.4.0.XPACNXM (Android 17) |
 | Xiaomi 13 Ultra | `ishtar` | OS3.0.308.0.WMACNXM (Android 16) |
 
+### 🚧 Under construction
+
+These images are built from each phone's stock firmware and have not been tried
+on the phone. They set up the screen, touch, WLAN and vibration, and do not decrypt
+the data partition.
+
+| Device | Codename | Built on |
+| --- | --- | --- |
+| 🚧 Xiaomi 17 | `pudding` | OS4.0.4.0.XPCCNXM (Android 17) |
+| 🚧 Xiaomi 17 Pro | `pandora` | OS4.0.4.0.XBLCNXM (Android 17) |
+| 🚧 Xiaomi 17 Pro Max | `popsicle` | OS4.0.4.0.XPBCNXM (Android 17) |
+| 🚧 REDMI K90 Pro Max | `myron` | OS4.0.4.0.XPMCNXM (Android 17) |
+| 🚧 REDMI K100 Pro | `athens` | OS4.0.4.0.XPICNXM (Android 17) |
+| 🚧 REDMI K100 Pro Max | `songyuan` | OS4.0.4.0.XGNCNXM (Android 17) |
+
 ## Installing
 
 Skyward needs an unlocked bootloader. Download the zip for your phone from
