@@ -214,6 +214,20 @@ fn run(s: &Service, who: &Credentials) -> Result<String> {
     Ok(format!("pid {} ended: {status}", child.id()))
 }
 
+
+/// Create an Android-init-style socket bound and listening under
+/// /dev/socket, for the program to accept connections on over the file
+/// descriptor it is handed through the environment.
+fn create_init_socket(name: &str) -> anyhow::Result<std::os::unix::net::UnixListener> {
+    use std::os::unix::net::UnixListener;
+    let path = format!("/dev/socket/{name}");
+    let _ = std::fs::remove_file(&path);
+    let listener = UnixListener::bind(&path)
+        .with_context(|| format!("bind {path}"))?;
+    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o660));
+    Ok(listener)
+}
+
 /// The program as it is started: with what it is given, from the top of the
 /// tree, reading and writing nothing of the recovery's, finding its
 /// libraries where it names them, and as `who`.
@@ -222,6 +236,26 @@ fn command(s: &Service, who: &Credentials) -> Command {
     cmd.args(&s.args).current_dir("/").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     if !s.libraries.is_empty() {
         cmd.env("LD_LIBRARY_PATH", s.libraries.join(":"));
+    }
+    // Android-init-style sockets: create each one bound and listening under
+    // /dev/socket, leave its file descriptor open over the exec, and say its
+    // number the way init does, through ANDROID_SOCKET_<name>.
+    for name in &s.sockets {
+        match create_init_socket(name) {
+            Ok(listener) => {
+                use std::os::unix::net::UnixListenerExt as _;
+                let _ = &listener;
+                let fd = std::os::unix::io::AsRawFd::as_raw_fd(&listener);
+                unsafe { libc::fcntl(fd, libc::F_SETFD, 0) };
+                let env = format!("ANDROID_SOCKET_{}", name.replace('-', "_"));
+                cmd.env(&env, fd.to_string());
+                std::mem::forget(listener);
+                let _ = skyward_sys::kmsg(&format!("socket {name} listening on fd {fd}"));
+            }
+            Err(e) => {
+                let _ = skyward_sys::kmsg(&format!("socket {name}: {e:#}"));
+            }
+        }
     }
     let who = who.clone();
     // Only system calls run between the fork and the exec, on what was
