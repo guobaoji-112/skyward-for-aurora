@@ -25,14 +25,14 @@ writes = [{ path = "/sys/class/touch/touch_dev/enable_touch_raw", value = "0" }]
 # own library folder does not carry, out of the installed system's.
 [[service]]
 path = "/system/bin/sh"
-args = ["-c", "mkdir -p /kmlibs && cp /mnt/system/system/lib64/libhardware.so /mnt/system/system/lib64/libvndksupport.so /mnt/system/system/lib64/libdmabufheap.so /mnt/system/system/lib64/libc++.so /mnt/system/system/lib64/libnetutils.so /mnt/system/system/lib64/bootstrap/libdl_android.so /kmlibs/ && printf '[recovery]\\nnamespace.default.isolated = false\\n' > /kmlibs/ld.config.txt && printf '#!/system/bin/sh\\nexport LD_CONFIG_FILE=/kmlibs/ld.config.txt\\nexec \"$@\"\\n' > /kmlibs/km.sh && chmod 755 /kmlibs/km.sh && V=$(ls -d /system_dlkm/lib/modules/*/kernel/net/rfkill 2>/dev/null | head -1) && mount --bind $V/rfkill.ko /system_dlkm/flatten/lib/modules/rfkill.ko"]
+args = ["-c", "mkdir -p /kmlibs && cp /mnt/system/system/lib64/libhardware.so /mnt/system/system/lib64/libvndksupport.so /mnt/system/system/lib64/libnetutils.so /mnt/system/system/lib64/bootstrap/libdl_android.so /kmlibs/ && printf '[recovery]\\nnamespace.default.isolated = false\\n' > /kmlibs/ld.config.txt && printf '#!/system/bin/sh\\nexport LD_CONFIG_FILE=/kmlibs/ld.config.txt\\nexec \"$@\"\\n' > /kmlibs/km.sh && chmod 755 /kmlibs/km.sh && V=$(ls -d /system_dlkm/lib/modules/*/kernel/net/rfkill 2>/dev/null | head -1) && mount --bind $V/rfkill.ko /system_dlkm/flatten/lib/modules/rfkill.ko"]
 oneshot = true
 user = "root"
 groups = ["root"]
 
 [[service]]
 path = "/vendor/bin/qseecomd"
-libraries = ["/system/lib64", "/vendor/lib64"]
+libraries = ["/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
 sockets = ["notify-topology"]
 ready_property = "vendor.sys.listeners.registered"
 user = "root"
@@ -41,7 +41,7 @@ groups = ["root", "drmrpc"]
 [[service]]
 path = "/kmlibs/km.sh"
 args = ["/vendor/bin/hw/android.hardware.security.keymint-service-qti"]
-libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64"]
+libraries = ["/kmlibs", "/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
 ready_service = "android.hardware.security.keymint.IKeyMintDevice/default"
 user = "root"
 groups = ["root", "drmrpc"]
@@ -56,7 +56,7 @@ groups = ["system", "readproc"]
 [[service]]
 path = "/kmlibs/km.sh"
 args = ["/vendor/bin/hw/android.hardware.gatekeeper-service-qti"]
-libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64"]
+libraries = ["/kmlibs", "/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
 ready_service = "android.hardware.gatekeeper.IGatekeeper/default"
 user = "root"
 groups = ["root", "drmrpc"]
@@ -75,7 +75,7 @@ groups = ["root"]
 # calls back into for system services.
 [[service]]
 path = "/vendor/bin/ssgtzd"
-libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64"]
+libraries = ["/kmlibs", "/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
 sockets = ["ssgtzd", "ssgtzd_opener"]
 user = "root"
 groups = ["root", "system", "drmrpc"]
