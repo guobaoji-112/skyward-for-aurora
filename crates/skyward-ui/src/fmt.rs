@@ -755,6 +755,32 @@ pub fn date(l: Lang, unix: i64, zone: usize) -> String {
     day(l, d.year().into(), d.month().into(), d.day().into())
 }
 
+/// The days of the week, as each language writes them, from Monday on.
+const WEEKDAYS: [Text; 7] =
+    [["周一", "週一", "Mon"], ["周二", "週二", "Tue"], ["周三", "週三", "Wed"], ["周四", "週四", "Thu"], ["周五", "週五", "Fri"], ["周六", "週六", "Sat"], ["周日", "週日", "Sun"]];
+
+/// The day of the week a Unix time falls on, as the language writes it:
+/// `周一`.
+pub fn weekday(l: Lang, unix: i64, zone: usize) -> &'static str {
+    l.pick(WEEKDAYS[local(unix, zone).weekday().to_monday_zero_offset() as usize])
+}
+
+/// The date and day of the week the AOD shows, as the language writes it:
+/// `10月26日周一`, `Mon, October 26`.
+pub fn aod_date(l: Lang, unix: i64, zone: usize) -> String {
+    let d = local(unix, zone);
+    let (month, day_of_month) = (d.month(), d.day());
+    let week = weekday(l, unix, zone);
+    match l {
+        Lang::Hans => format!("{month}月{day_of_month}日{week}"),
+        Lang::Hant => format!("{month}月{day_of_month}日{week}"),
+        Lang::En => {
+            let name = MONTHS[(month - 1) as usize];
+            format!("{week}, {name} {day_of_month}")
+        }
+    }
+}
+
 /// When a list entry last changed, as the stock file manager tells it
 /// against `now`, when the folder was read: the time for today, month and
 /// day for a file from this year, and the whole date for a folder from this

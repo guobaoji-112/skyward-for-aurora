@@ -499,6 +499,14 @@ fn bring_up(cfg: &DeviceConfig, slot: skyward_vab::Slot) -> Result<()> {
     for path in load_modules(cfg, &cfg.modules.load)? {
         skyward_sys::kmsg(&format!("loaded {}", path.display()))?;
     }
+    // The drivers have made their nodes and their files by now, and the phone's
+    // own init would give them an owner and permissions here, in its `on boot`
+    // block. A recovery runs no init, so what it leaves is root-only, and the
+    // programs that run as users are left unable to touch the screen.
+    let files = skyward_sys::ueventd::apply_init()?;
+    if files > 0 {
+        skyward_sys::kmsg(&format!("{files} files given the owner and permissions the phone's init gives them"))?;
+    }
     let hardware: Vec<String> = services.iter().filter_map(|s| s.ready_hardware_service.clone()).collect();
     if !hardware.is_empty() {
         secure::prepare_hardware_directory(&hardware)?;

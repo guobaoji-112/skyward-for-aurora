@@ -32,6 +32,7 @@ Skyward 是使用 Rust 编写的 recovery，从零开始编写。
 | --- | --- | --- |
 | 小米 17 Ultra | `nezha` | OS4.0.4.0.XPACNXM（Android 17） |
 | 小米 13 Ultra | `ishtar` | OS3.0.308.0.WMACNXM（Android 16） |
+| 小米 13 Pro | `nuwa` | OS4.0.24.0.XEOCNXM（Android 17） |
 
 ### 🚧 施工中
 

@@ -1043,6 +1043,48 @@ pub struct Fastboot {
 /// the order the page lists them; `None` keeps it on.
 pub const SCREEN_OFF: [Option<u64>; 7] = [Some(15_000), Some(30_000), Some(60_000), Some(120_000), Some(300_000), Some(600_000), None];
 
+/// The share of the panel's normal maximum the AOD is lit at, while the
+/// pages sleep: light enough to read in the dark, dim enough to forget.
+pub const AOD_LEVEL: f32 = 0.02;
+
+/// The looks the AOD's clock shows in, as the settings cycle through them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AodStyle {
+    /// `HH:MM` large, centered.
+    #[default]
+    Digits,
+    /// The hour and the minute set askew, each as large as the screen
+    /// allows.
+    Offset,
+    /// A clock face.
+    Dial,
+}
+
+impl AodStyle {
+    /// The style after this one, as the setting is tapped.
+    pub fn next(self) -> Self {
+        match self {
+            AodStyle::Digits => AodStyle::Offset,
+            AodStyle::Offset => AodStyle::Dial,
+            AodStyle::Dial => AodStyle::Digits,
+        }
+    }
+}
+
+/// How far up the glass a finger must swipe for the AOD to believe it
+/// meant to wake the panel, in dp: farther than a pocket shifts.
+const WAKE_SWIPE_DP: f32 = 64.0;
+
+/// Where the AOD sits, in dp from its usual place, one each minute in
+/// turn, so no pixel holds the light long enough to burn into the panel.
+const AOD_SPOTS: [(f32, f32); 4] = [(0.0, 0.0), (5.0, -3.0), (0.0, 6.0), (-5.0, -3.0)];
+
+/// The AOD's inks on the black panel: the clock the brightest, the day
+/// and the charge left dimmer, the hint of how to leave it faintest.
+const AOD_INK: Rgba = Rgba::rgb(0xC0, 0xC0, 0xC0);
+const AOD_DIM: Rgba = Rgba::rgb(0x82, 0x82, 0x82);
+const AOD_FAINT: Rgba = Rgba::rgb(0x52, 0x52, 0x52);
+
 /// The time zones the clock and the times on the pages can keep, in the
 /// order their page lists them: the name, the cities it covers, and the
 /// zone's name in the tz database.
@@ -1098,6 +1140,8 @@ pub enum Action {
     Dismiss,
     /// Keep the screen on for this choice in [`SCREEN_OFF`].
     ScreenOff(usize),
+    /// Show the AOD's clock in the next of [`AodStyle`]'s looks.
+    AodStyle,
     /// Keep the time zone at this place in [`TIME_ZONES`].
     TimeZone(usize),
     /// Speak this language.
@@ -1472,6 +1516,11 @@ pub struct State {
     /// The time zone the clock and the times on the pages keep, by its
     /// place in [`TIME_ZONES`].
     pub time_zone: usize,
+    /// The day and the day of the week the AOD shows under the clock, as
+    /// [`fmt::aod_date`] wrote them last.
+    pub aod_date: String,
+    /// The look of the AOD's clock.
+    pub aod_style: AodStyle,
     pub vibrate: bool,
     /// How strongly the motor taps, from 0 at the slider's left end to 1
     /// at its right.
@@ -1626,6 +1675,8 @@ impl Default for State {
             // Two minutes.
             screen_off: 3,
             time_zone: 0,
+            aod_date: String::new(),
+            aod_style: AodStyle::Digits,
             vibrate: true,
             vibration: SLIDER_START,
             file_transfer: true,
@@ -1955,9 +2006,12 @@ enum Drag {
     /// the editor's text, `carry` being the part of a row not yet scrolled.
     History { last: f32, carry: f32, pitch: f32 },
     Pattern,
-    /// The finger that lit the dark panel; nothing it does counts until it
-    /// lifts.
+    /// The finger that landed just after the panel lit by a key; nothing it
+    /// does counts until it lifts.
     Waking,
+    /// A finger on the glass of the AOD, from the `y` it came down at;
+    /// swiped up far enough, it lights the panel.
+    Aod { y: f32 },
 }
 
 /// Where the keys are on a page.
@@ -2847,10 +2901,10 @@ impl App {
     }
 
     /// The backlight at `now`: off, or this share of the brightness at the
-    /// slider's top.
+    /// slider's top; the AOD holds the dark panel at its own low light.
     pub fn panel(&self, now: u64) -> Option<f32> {
         if !self.display_on {
-            return None;
+            return Some(AOD_LEVEL);
         }
         let (full, level) = (self.state.brightness, self.bright.level(now));
         Some(full * level + dim_level(full) * (1.0 - level))
@@ -3752,6 +3806,10 @@ impl App {
     /// it scrolls into view; that done, make the About page field's dither,
     /// for that page to open without making it. Whether any is left to do.
     pub fn draw_ahead(&mut self, f: &Fonts, info: &DeviceInfo) -> bool {
+        if !self.display_on {
+            // The AOD is on the panel: no page is drawn ahead of time.
+            return false;
+        }
         let Some(frame) = &self.frame else { return false };
         let (held, h) = (frame.canvas.held(), frame.canvas.h);
         if self.cols < self.w {
@@ -3831,6 +3889,11 @@ impl App {
     /// out over or under the page left, the status bar, any message, and
     /// the back cue while a swipe from an edge is under way.
     pub fn compose(&mut self, out: &mut Canvas, f: &Fonts, info: &DeviceInfo, clock: &str, now: u64) {
+        // Asleep, the panel shows the AOD instead of the pages.
+        if !self.display_on {
+            self.compose_aod(out, f, info, clock);
+            return;
+        }
         // A page opened is drawn from its left edge as it slides in.
         let opening = self.turn.as_ref().is_some_and(|t| !t.back);
         self.render(f, info, if opening { 0 } else { self.w });
@@ -4162,6 +4225,108 @@ impl App {
         }
         self.caret_shown = self.blink_at(now).is_some_and(|(on, _)| on);
         self.caret_shown
+    }
+
+    /// Draw the AOD the sleeping panel shows: the day, then the time in
+    /// the style the settings chose, the charge left under it, and the
+    /// hint of how to leave it, all dim on black, and all aside from where
+    /// they were the minute before, so no pixel holds the light long
+    /// enough to burn into the panel.
+    fn compose_aod(&mut self, out: &mut Canvas, f: &Fonts, info: &DeviceInfo, clock: &str) {
+        out.fill_rect(0.0, 0.0, out.w as f32, out.h as f32, Rgba::rgb(0, 0, 0));
+        let t = self.theme();
+        let m = t.m;
+        let l = self.state.lang;
+        let (w, h) = (out.w as f32, out.h as f32);
+        let minute = clock.get(3..5).and_then(|m| m.parse::<u32>().ok()).unwrap_or(0);
+        let (dx, dy) = AOD_SPOTS[(minute as usize) % AOD_SPOTS.len()];
+        let (dx, dy) = (m.dp(dx), m.dp(dy));
+        let cx = w / 2.0 + dx;
+        let date = self.state.aod_date.clone();
+        let (hh, mm) = clock.split_once(':').unwrap_or(("00", "00"));
+        match self.state.aod_style {
+            AodStyle::Digits => {
+                let cy = h * 0.34 + dy;
+                out.text_center(&f.body, &date, cx, cy - m.dp(64.0), m.dp(16.0), AOD_DIM);
+                out.text_center(&f.title, clock, cx, cy, m.dp(88.0), AOD_INK);
+            }
+            AodStyle::Offset => {
+                out.text_center(&f.title, hh, cx - m.dp(90.0), h * 0.28 + dy, m.dp(150.0), AOD_INK);
+                out.text_center(&f.title, mm, cx + m.dp(90.0), h * 0.28 + dy + m.dp(150.0), m.dp(150.0), AOD_INK);
+                out.text_center(&f.body, &date, cx, h * 0.28 + dy + m.dp(252.0), m.dp(16.0), AOD_DIM);
+            }
+            AodStyle::Dial => {
+                let cy = h * 0.40 + dy;
+                self.aod_dial(out, f, (cx, cy, m.dp(104.0)), clock, info.battery.as_ref().map(|b| b.level));
+                out.text_center(&f.body, &date, cx, cy - m.dp(104.0) - m.dp(46.0), m.dp(16.0), AOD_DIM);
+            }
+        }
+        if let Some(battery) = &info.battery {
+            let level = battery.level;
+            let words = if battery.plugged() {
+                tr!(l, "充电中 {level}%", "充電中 {level}%", "Charging {level}%")
+            } else {
+                format!("{level}%")
+            };
+            out.text_center(&f.body, &words, cx, h * 0.66 + dy, m.dp(15.0), AOD_DIM);
+        }
+        let hint = l.pick(["上滑解锁", "上滑解鎖", "Swipe up to unlock"]);
+        out.text_center(&f.body, hint, cx, h * 0.85 + dy, m.dp(13.0), AOD_FAINT);
+    }
+
+    /// The AOD's clock face: a ring with a subtle face, twelve marks, the
+    /// quarter hours named inside them, tapered hour and minute hands at
+    /// the time `(hh, mm)` name, and the charge left as an arc of the
+    /// battery's share just outside the ring.
+    fn aod_dial(&self, out: &mut Canvas, f: &Fonts, (cx, cy, r): (f32, f32, f32), clock: &str, level: Option<u8>) {
+        let (hh, mm) = match clock.split_once(':').and_then(|(hh, mm)| hh.parse::<f32>().ok().zip(mm.parse::<f32>().ok())) {
+            Some((hh, mm)) => (hh, mm),
+            None => return,
+        };
+        let t = self.theme();
+        let m = t.m;
+        out.fill_circle(cx, cy, r, AOD_DIM);
+        out.fill_circle(cx, cy, r - m.dp(3.0), Rgba::rgb(0x0A, 0x0A, 0x0A));
+        if let Some(level) = level.filter(|l| *l > 0) {
+            let turn = std::f32::consts::TAU;
+            out.stroke_arc(cx, cy, r + m.dp(10.0), -std::f32::consts::FRAC_PI_2, turn * f32::from(level) / 100.0, m.dp(4.0), AOD_INK);
+        }
+        // Twelve marks, longer and thicker at the quarters, and the quarter
+        // hours named inside them.
+        for i in 0..12 {
+            let a = i as f32 * std::f32::consts::FRAC_PI_6;
+            let (sx, sy) = (a.sin(), -a.cos());
+            let (px, py) = (-sy, sx);
+            let quarter = i % 3 == 0;
+            let (r0, r1, half) = if quarter {
+                (r - m.dp(14.0), r - m.dp(6.0), m.dp(2.5))
+            } else {
+                (r - m.dp(10.0), r - m.dp(6.0), m.dp(1.25))
+            };
+            out.fill_convex(
+                &[(cx + sx * r0 + px * half, cy + sy * r0 + py * half), (cx + sx * r1 + px * half, cy + sy * r1 + py * half), (cx + sx * r1 - px * half, cy + sy * r1 - py * half), (cx + sx * r0 - px * half, cy + sy * r0 - py * half)],
+                AOD_INK,
+            );
+            if quarter {
+                let n = if i == 0 { "12" } else { &i.to_string()[..] };
+                out.text_center(&f.heading, n, cx + sx * r * 0.72, cy + sy * r * 0.72, m.dp(26.0), AOD_INK);
+            }
+        }
+        // A hand, tapered from its base at the center out to its tip, at
+        // `angle` from twelve, clockwise.
+        let mut hand = |angle: f32, len: f32, base: f32, tip: f32| {
+            let (sx, sy) = (angle.sin(), -angle.cos());
+            let (px, py) = (-sy, sx);
+            out.fill_convex(
+                &[(cx - px * base, cy - py * base), (cx + sx * len + px * tip, cy + sy * len + py * tip), (cx + sx * len - px * tip, cy + sy * len - py * tip), (cx + px * base, cy + py * base)],
+                AOD_INK,
+            );
+        };
+        let turn = std::f32::consts::TAU;
+        hand(hh.rem_euclid(12.0) / 12.0 * turn + mm / 60.0 * (turn / 12.0), r * 0.48, m.dp(5.0), m.dp(1.5));
+        hand(mm / 60.0 * turn, r * 0.76, m.dp(3.5), m.dp(1.0));
+        out.fill_circle(cx, cy, m.dp(6.0), AOD_INK);
+        out.fill_circle(cx, cy, m.dp(2.0), Rgba::rgb(0x0A, 0x0A, 0x0A));
     }
 
     /// Draw the search bar on its way between the home page and the search
@@ -4876,6 +5041,10 @@ impl App {
                 self.state.screen_off = k;
                 self.refresh();
             }
+            Action::AodStyle => {
+                self.state.aod_style = self.state.aod_style.next();
+                self.refresh();
+            }
             Action::TimeZone(k) => {
                 self.state.time_zone = k;
                 self.refresh();
@@ -5441,11 +5610,22 @@ impl App {
 
     pub fn touch(&mut self, ev: Touch, f: &Fonts, now: u64) -> Vec<Effect> {
         if !self.display_on {
-            // A finger on the dark panel lights it, and does nothing else
-            // until it lifts.
-            if matches!(ev, Touch::Down(..)) {
-                self.wake(now);
-                self.drag = Drag::Waking;
+            // The dark panel shows the AOD, and a stray touch leaves it as
+            // it is: a recovery rides in a pocket or a bag, and among the
+            // things a stray tap could reach is wiping the phone. A swipe
+            // up far enough to have been meant brings the pages back, as a
+            // button does.
+            match ev {
+                Touch::Down(_, y) => self.drag = Drag::Aod { y },
+                Touch::Move(_, y) => {
+                    if let Drag::Aod { y: y0 } = self.drag {
+                        if y0 - y >= self.theme().m.dp(WAKE_SWIPE_DP) {
+                            self.drag = Drag::Idle;
+                            self.wake(now);
+                        }
+                    }
+                }
+                Touch::Up => self.drag = Drag::Idle,
             }
             return Vec::new();
         }
@@ -5629,6 +5809,9 @@ impl App {
                     self.drag = self.scroll_history(last, y, carry, pitch);
                 }
                 Drag::Waking => self.drag = Drag::Waking,
+                // The finger that lit the panel from the AOD goes on as
+                // one that only keeps it awake.
+                Drag::Aod { .. } => self.drag = Drag::Waking,
                 Drag::Held => self.drag = Drag::Held,
                 Drag::Idle => {}
             },
@@ -8095,6 +8278,78 @@ mod tests {
     }
 
     #[test]
+    fn a_touch_leaves_a_dark_panel_dark_and_a_key_lights_it() {
+        let (f, i) = (fonts(), info());
+        let mut app = App::new(Screen::Home, W, H, PPD);
+        app.frame(&f, &i);
+        assert!(press(&mut app, Key::Power, 0).is_empty());
+        assert!(!app.display_on(), "the light is out");
+        app.touch(Touch::Down(W as f32 / 2.0, H as f32 / 2.0), &f, 0);
+        app.touch(Touch::Up, &f, 0);
+        assert!(!app.display_on(), "a stray touch in a pocket lights nothing");
+        assert!(app.touch(Touch::Down(W as f32 / 2.0, H as f32 / 2.0), &f, 8).is_empty());
+        assert!(!app.display_on(), "nor does holding it");
+        assert!(press(&mut app, Key::Power, 16).is_empty());
+        assert!(app.display_on(), "a key brings the panel back");
+    }
+
+    #[test]
+    fn the_dark_panel_shows_the_aod_and_a_swipe_up_lights_it() {
+        let (f, i) = (fonts(), info());
+        let mut app = App::new(Screen::Home, W, H, PPD);
+        app.frame(&f, &i);
+        assert!(press(&mut app, Key::Power, 0).is_empty());
+        assert!(!app.display_on(), "the light is out");
+        assert_eq!(app.panel(0), Some(AOD_LEVEL), "the AOD holds the panel at its own low light");
+        let mut out = Canvas::new(W, H);
+        app.compose(&mut out, &f, &i, "09:32", 0);
+        assert!(out.data.iter().any(|px| *px != 0), "the AOD draws the time on the black panel");
+        // A tap, and a shift of the cloth, leave the AOD as it is.
+        let x = W as f32 / 2.0;
+        app.touch(Touch::Down(x, H as f32 * 0.8), &f, 0);
+        app.touch(Touch::Move(x, H as f32 * 0.8 - 20.0), &f, 8);
+        app.touch(Touch::Up, &f, 16);
+        assert!(!app.display_on(), "a touch that is no swipe does not wake it");
+        // A swipe up far enough brings the pages back.
+        let far = app.theme().m.dp(WAKE_SWIPE_DP) + 1.0;
+        app.touch(Touch::Down(x, H as f32 * 0.8), &f, 1000);
+        app.touch(Touch::Move(x, H as f32 * 0.8 - far), &f, 1010);
+        assert!(app.display_on(), "a swipe up lights the panel");
+        app.touch(Touch::Up, &f, 1020);
+    }
+
+    #[test]
+    fn the_aod_shows_each_clock_style_the_settings_cycle_through() {
+        let (f, i) = (fonts(), info());
+        let mut app = App::new(Screen::Settings, W, H, PPD);
+        app.frame(&f, &i);
+        assert_eq!(app.state.aod_style, AodStyle::Digits, "the AOD starts on the digits");
+        // The switch sits below the fold on the settings page; scroll it on.
+        app.top_mut().1 = app.max_scroll();
+        tap(&mut app, &f, &i, Action::AodStyle);
+        assert_eq!(app.state.aod_style, AodStyle::Offset, "a tap asks for the offset digits");
+        tap(&mut app, &f, &i, Action::AodStyle);
+        assert_eq!(app.state.aod_style, AodStyle::Dial, "another asks for the clock face");
+        tap(&mut app, &f, &i, Action::AodStyle);
+        assert_eq!(app.state.aod_style, AodStyle::Digits, "and a third comes back to the digits");
+        // Asleep, each style draws, and no two draw the same.
+        press(&mut app, Key::Power, 1000);
+        assert!(!app.display_on(), "the light is out");
+        app.state.aod_date = "10月26日周一".into();
+        let mut out = Canvas::new(W, H);
+        let mut frames = Vec::new();
+        for style in [AodStyle::Digits, AodStyle::Offset, AodStyle::Dial] {
+            app.state.aod_style = style;
+            app.compose(&mut out, &f, &i, "10:08", 1000);
+            assert!(out.data.iter().any(|px| *px != 0), "{style:?} draws on the black panel");
+            frames.push(out.data.clone());
+        }
+        assert_ne!(frames[0], frames[1], "the digits and the offset digits draw differently");
+        assert_ne!(frames[1], frames[2], "the offset digits and the dial draw differently");
+        assert_ne!(frames[0], frames[2], "the digits and the dial draw differently");
+    }
+
+    #[test]
     fn without_a_touchscreen_the_first_control_is_lit_at_once() {
         let (f, i) = (fonts(), info());
         let mut app = App::new(Screen::Home, W, H, PPD);
@@ -10375,14 +10630,14 @@ mod tests {
         assert_eq!(app.panel(0), Some(SLIDER_START), "it waits for volume down first");
         assert_eq!(app.deadline(0), Some(CHORD_MS));
         assert!(app.tick(CHORD_MS).is_empty());
-        assert_eq!(app.panel(CHORD_MS), None, "held on alone, it turns the panel off");
+        assert_eq!(app.panel(CHORD_MS), Some(AOD_LEVEL), "held on alone, it turns the panel off to the AOD");
         assert!(app.key_up(Key::Power, CHORD_MS + 50).is_empty());
         assert!(app.key(Key::Power, CHORD_MS + 60).is_empty());
         assert_eq!(app.panel(CHORD_MS + 60), Some(SLIDER_START));
         assert!(app.key_up(Key::Power, CHORD_MS + 100).is_empty());
         assert!(app.key(Key::Power, 1000).is_empty());
         assert!(app.key_up(Key::Power, 1050).is_empty());
-        assert_eq!(app.panel(1050), None, "let go sooner, it turns the panel off then");
+        assert_eq!(app.panel(1050), Some(AOD_LEVEL), "let go sooner, it turns the panel off to the AOD then");
     }
 
     #[test]
@@ -10465,7 +10720,7 @@ mod tests {
         assert_eq!(app.panel(DIMS + 500), Some(dim_level(SLIDER_START)));
         assert_eq!(app.deadline(DIMS + 500), Some(OFF), "dim until it goes off");
         app.tick(OFF);
-        assert_eq!(app.panel(OFF), None);
+        assert_eq!(app.panel(OFF), Some(AOD_LEVEL), "the AOD takes the dark panel at its own low light");
         assert!(!app.display_on());
         assert_eq!(app.deadline(OFF), None, "nothing to wait for on a dark panel");
     }
@@ -10479,7 +10734,7 @@ mod tests {
         assert_eq!(app.panel(5_000_000), Some(SLIDER_START));
         assert_eq!(app.deadline(5_000_000), Some(5_000_000 + DIMS));
         app.tick(5_000_000 + OFF);
-        assert_eq!(app.panel(5_000_000 + OFF), None);
+        assert_eq!(app.panel(5_000_000 + OFF), Some(AOD_LEVEL));
     }
 
     #[test]
@@ -10508,19 +10763,19 @@ mod tests {
     }
 
     #[test]
-    fn a_touch_on_the_dark_panel_only_lights_it() {
+    fn a_touch_on_the_dark_panel_leaves_it_dark() {
         let (f, i) = (fonts(), info());
         let mut app = App::new(Screen::Home, W, H, PPD);
         let (x, y) = spot(&mut app, &f, &i, Action::Open(Screen::Settings));
         press(&mut app, Key::Power, 0);
         assert!(app.touch(Touch::Down(x, y), &f, 100).is_empty());
-        assert_eq!(app.panel(100), Some(SLIDER_START));
-        assert!(app.touch(Touch::Move(x, y - 300.0), &f, 120).is_empty());
+        assert_eq!(app.panel(100), Some(AOD_LEVEL), "the panel stays dark: a pocket touch lights nothing");
         assert!(app.touch(Touch::Up, &f, 140).is_empty());
-        assert_eq!(app.screen(), Screen::Home, "the waking tap pressed nothing");
-        assert_eq!(app.top().1, 0.0, "nor scrolled the page");
-        tap_at(&mut app, &f, &i, Action::Open(Screen::Settings), 600);
-        assert_eq!(app.screen(), Screen::Settings, "a tap past the guard does");
+        assert_eq!(app.screen(), Screen::Home, "nothing the stray touch did took hold");
+        assert!(press(&mut app, Key::Power, 600).is_empty());
+        assert!(app.display_on(), "a key brings the panel back");
+        tap_at(&mut app, &f, &i, Action::Open(Screen::Settings), 1500);
+        assert_eq!(app.screen(), Screen::Settings, "a touch on the lit panel acts");
     }
 
     #[test]

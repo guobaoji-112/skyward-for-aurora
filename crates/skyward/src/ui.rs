@@ -774,9 +774,12 @@ fn answer(request: Request, fastboot: bool) -> Vec<Effect> {
     }
 }
 
-/// The time of day for the status bar, in the zone the settings chose.
-fn clock(zone: usize) -> Result<String> {
-    Ok(skyward_ui::fmt::clock(unix_now()?, zone))
+/// The time of day and the day of the week now, in the zone the settings
+/// chose; the status bar shows the time and the AOD shows them both while
+/// the pages sleep.
+fn clock_and_day(lang: Lang, zone: usize) -> Result<(String, String)> {
+    let unix = unix_now()?;
+    Ok((skyward_ui::fmt::clock(unix, zone), skyward_ui::fmt::aod_date(lang, unix, zone)))
 }
 
 /// Tell the kernel log how the data partition was mounted, where opening
@@ -1065,6 +1068,7 @@ pub fn run(cfg: &DeviceConfig, font: &Path, mono: &Path, request: bcb::Request, 
     // besides the panel's: made ready now, the first slide finds them so.
     Canvas::keep_ready(w, h, 3);
     let mut shown_clock = String::new();
+    let mut shown_day = String::new();
     // The readings are taken again on a thread of their own; those taken
     // here as work ends say how it left the phone, and readings started
     // before them are out of date.
@@ -1272,9 +1276,11 @@ pub fn run(cfg: &DeviceConfig, font: &Path, mono: &Path, request: bcb::Request, 
                 other => unreachable!("time passing asks for nothing but a tap of the motor, not {other:?}"),
             }
         }
-        let time = clock(app.state.time_zone)?;
-        if time != shown_clock {
+        let (time, day) = clock_and_day(app.state.lang, app.state.time_zone)?;
+        if time != shown_clock || day != shown_day {
             shown_clock = time;
+            shown_day = day.clone();
+            app.state.aod_date = day;
             app.redraw();
         }
         for reading in readings.taken() {
