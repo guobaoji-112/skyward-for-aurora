@@ -43,8 +43,8 @@ path = "/kmlibs/km.sh"
 args = ["/vendor/bin/hw/android.hardware.security.keymint-service-qti"]
 libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64"]
 ready_service = "android.hardware.security.keymint.IKeyMintDevice/default"
-user = "system"
-groups = ["system", "drmrpc"]
+user = "root"
+groups = ["root", "drmrpc"]
 
 [[service]]
 path = "/mnt/system_ext/bin/hwservicemanager"
@@ -58,8 +58,8 @@ path = "/kmlibs/km.sh"
 args = ["/vendor/bin/hw/android.hardware.gatekeeper-service-qti"]
 libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64"]
 ready_service = "android.hardware.gatekeeper.IGatekeeper/default"
-user = "system"
-groups = ["system"]
+user = "root"
+groups = ["root", "drmrpc"]
 
 [[service]]
 path = "/vendor/bin/hw/android.hardware.boot-service.qti"
