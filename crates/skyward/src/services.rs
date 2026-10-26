@@ -226,7 +226,8 @@ fn create_init_socket(name: &str) -> anyhow::Result<i32> {
     let listener = UnixListener::bind(&path)
         .with_context(|| format!("bind {path}"))?;
     let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o660));
-    let fd = std::os::unix::io::AsRawFd::as_raw_fd(&listener);
+    let listener = Box::leak(Box::new(listener));
+    let fd = std::os::unix::io::AsRawFd::as_raw_fd(listener);
     unsafe { libc::fcntl(fd, libc::F_SETFD, 0) };
     const O_NONBLOCK: i32 = 0o4000;
     let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
@@ -251,8 +252,6 @@ fn create_init_socket(name: &str) -> anyhow::Result<i32> {
             }
         }
     }).with_context(|| format!("spawn the accept thread for {path}"))?;
-    // the listener is owned by the thread now, so the descriptor stays open
-    std::mem::forget(listener);
     Ok(fd)
 }
 
