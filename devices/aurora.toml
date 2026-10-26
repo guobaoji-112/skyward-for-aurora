@@ -15,16 +15,32 @@ density = 560
 sources = ["vendor_boot", "vendor_dlkm", "vendor", "system_dlkm"]
 load = ["synaptics_tcm2"]
 
+# The touchscreen's raw frames: told through Xiaomi's touch layer, the
+# driver reports positions itself, as the phone's own touch processing
+# is not there to do it.
+[touch]
+writes = [{ path = "/sys/class/touch/touch_dev/enable_touch_raw", value = "0" }]
+
+# Stage the shared libraries the key service asks for that the recovery's
+# own library folder does not carry, out of the installed system's.
+[[service]]
+path = "/system/bin/sh"
+args = ["-c", "mkdir -p /kmlibs && cp /mnt/system/system/lib64/libhardware.so /mnt/system/system/lib64/libvndksupport.so /mnt/system/system/lib64/libdmabufheap.so /mnt/system/system/lib64/libc++.so /mnt/system/system/lib64/libnetutils.so /mnt/system/system/lib64/bootstrap/libdl_android.so /kmlibs/"]
+oneshot = true
+user = "root"
+groups = ["root"]
+
 [[service]]
 path = "/vendor/bin/qseecomd"
 libraries = ["/system/lib64", "/vendor/lib64"]
+sockets = ["notify-topology"]
 ready_property = "vendor.sys.listeners.registered"
 user = "root"
 groups = ["root", "drmrpc"]
 
 [[service]]
 path = "/vendor/bin/hw/android.hardware.security.keymint-service-qti"
-libraries = ["/system/lib64", "/vendor/lib64"]
+libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64"]
 ready_service = "android.hardware.security.keymint.IKeyMintDevice/default"
 user = "system"
 groups = ["system", "drmrpc"]
@@ -38,7 +54,7 @@ groups = ["system", "readproc"]
 
 [[service]]
 path = "/vendor/bin/hw/android.hardware.gatekeeper-service-qti"
-libraries = ["/system/lib64", "/vendor/lib64"]
+libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64"]
 ready_service = "android.hardware.gatekeeper.IGatekeeper/default"
 user = "system"
 groups = ["system"]
@@ -52,6 +68,17 @@ groups = ["root"]
 
 # WLAN: WCN7850 on PCIe, driven by qca_cld3_kiwi_v2 over cnss2. The MAC
 # address lives in persist under kiwi_v2/, not wlan/ (verified on device).
+
+# The secure service gateway: registers the smcinvoke server the TEE
+# calls back into for system services.
+[[service]]
+path = "/vendor/bin/ssgtzd"
+libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64"]
+sockets = ["ssgtzd", "ssgtzd_opener"]
+user = "root"
+groups = ["root", "system", "drmrpc"]
+capabilities = ["WAKE_ALARM", "BLOCK_SUSPEND"]
+
 [wlan]
 modules = ["rfkill", "qca_cld3_kiwi_v2"]
 writes = [{ path = "/sys/kernel/cnss/fs_ready", value = "1" }]
