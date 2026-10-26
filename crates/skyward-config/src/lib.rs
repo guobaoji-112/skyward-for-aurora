@@ -315,6 +315,10 @@ pub struct Service {
     /// Directories for LD_LIBRARY_PATH, searched in order.
     #[serde(default)]
     pub libraries: Vec<String>,
+    /// Android-init-style sockets to create under /dev/socket and hand to
+    /// the program the way init does, through ANDROID_SOCKET_<name>.
+    #[serde(default)]
+    pub sockets: Vec<String>,
     /// The program runs once, to its end, as a service of init's marked
     /// oneshot does: it is not started again, the programs after it start
     /// once it has ended, and it has to end well.
