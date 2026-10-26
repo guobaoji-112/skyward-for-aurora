@@ -219,14 +219,41 @@ fn run(s: &Service, who: &Credentials) -> Result<String> {
 /// Create an Android-init-style socket bound and listening under
 /// /dev/socket, for the program to accept connections on over the file
 /// descriptor it is handed through the environment.
-fn create_init_socket(name: &str) -> anyhow::Result<std::os::unix::net::UnixListener> {
+fn create_init_socket(name: &str) -> anyhow::Result<i32> {
     use std::os::unix::net::UnixListener;
     let path = format!("/dev/socket/{name}");
     let _ = std::fs::remove_file(&path);
     let listener = UnixListener::bind(&path)
         .with_context(|| format!("bind {path}"))?;
     let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o660));
-    Ok(listener)
+    let fd = std::os::unix::io::AsRawFd::as_raw_fd(&listener);
+    unsafe { libc::fcntl(fd, libc::F_SETFD, 0) };
+    const O_NONBLOCK: i32 = 0o4000;
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    unsafe { libc::fcntl(fd, libc::F_SETFL, flags & !O_NONBLOCK) };
+    // drain the connections the peers make, or their writes fail
+    let named = name.to_string();
+    std::thread::Builder::new().name(format!("sock-{named}")).spawn(move || {
+        for stream in listener.incoming() {
+            match stream {
+                Ok(c) => {
+                    std::thread::Builder::new().name(format!("sockc-{named}")).spawn(move || {
+                        let mut buf = [0u8; 4096];
+                        loop {
+                            match std::io::Read::read(&mut &c, &mut buf) {
+                                Ok(0) | Err(_) => return,
+                                Ok(_) => {}
+                            }
+                        }
+                    }).ok();
+                }
+                Err(_) => return,
+            }
+        }
+    }).with_context(|| format!("spawn the accept thread for {path}"))?;
+    // the listener is owned by the thread now, so the descriptor stays open
+    std::mem::forget(listener);
+    Ok(fd)
 }
 
 /// The program as it is started: with what it is given, from the top of the
@@ -243,12 +270,9 @@ fn command(s: &Service, who: &Credentials) -> Command {
     // number the way init does, through ANDROID_SOCKET_<name>.
     for name in &s.sockets {
         match create_init_socket(name) {
-            Ok(listener) => {
-                let fd = std::os::unix::io::AsRawFd::as_raw_fd(&listener);
-                unsafe { libc::fcntl(fd, libc::F_SETFD, 0) };
+            Ok(fd) => {
                 let env = format!("ANDROID_SOCKET_{}", name.replace('-', "_"));
                 cmd.env(&env, fd.to_string());
-                std::mem::forget(listener);
                 let _ = skyward_sys::kmsg(&format!("socket {name} listening on fd {fd}"));
             }
             Err(e) => {
