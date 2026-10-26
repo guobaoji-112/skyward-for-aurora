@@ -243,8 +243,6 @@ fn command(s: &Service, who: &Credentials) -> Command {
     for name in &s.sockets {
         match create_init_socket(name) {
             Ok(listener) => {
-                use std::os::unix::net::UnixListenerExt as _;
-                let _ = &listener;
                 let fd = std::os::unix::io::AsRawFd::as_raw_fd(&listener);
                 unsafe { libc::fcntl(fd, libc::F_SETFD, 0) };
                 let env = format!("ANDROID_SOCKET_{}", name.replace('-', "_"));
