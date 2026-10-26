@@ -1841,6 +1841,8 @@ pub enum Effect {
     /// open, and otherwise held until it is, telling how it went with
     /// [`App::screenshot_saved`].
     Screenshot { storage: bool },
+    /// Keep the AOD's clock in this look for the boots to come.
+    SaveAodStyle(AodStyle),
     /// Offer internal storage to a computer over USB, or stop.
     FileTransfer(bool),
     /// Start receiving a package over USB.
@@ -2507,6 +2509,9 @@ pub struct App {
     /// while other pages show.
     term: Option<Term>,
     display_on: bool,
+    /// Whether the user has picked the AOD's clock style this boot; what
+    /// the owner's storage kept only counts before they have.
+    aod_style_chosen: bool,
     /// When the screen was last touched or a key pressed; set on the first
     /// tick, so the time before the UI started does not count.
     active: Option<u64>,
@@ -2596,6 +2601,7 @@ impl App {
             glow: None,
             term: None,
             display_on: true,
+            aod_style_chosen: false,
             active: None,
             woke_at: None,
             bright: full_brightness(),
@@ -2925,6 +2931,16 @@ impl App {
         }
         self.woke_at = Some(now);
         self.stir(now);
+    }
+
+    /// The look the owner's storage kept of the AOD's clock, which only
+    /// counts before the user picks one of their own this boot.
+    pub fn set_saved_aod_style(&mut self, style: AodStyle) {
+        if self.aod_style_chosen || self.state.aod_style == style {
+            return;
+        }
+        self.state.aod_style = style;
+        self.refresh();
     }
 
     /// Whether the panel lit so recently that a touch or key should only
@@ -5043,7 +5059,9 @@ impl App {
             }
             Action::AodStyle => {
                 self.state.aod_style = self.state.aod_style.next();
+                self.aod_style_chosen = true;
                 self.refresh();
+                return vec![Effect::SaveAodStyle(self.state.aod_style)];
             }
             Action::TimeZone(k) => {
                 self.state.time_zone = k;
@@ -8347,6 +8365,20 @@ mod tests {
         assert_ne!(frames[0], frames[1], "the digits and the offset digits draw differently");
         assert_ne!(frames[1], frames[2], "the offset digits and the dial draw differently");
         assert_ne!(frames[0], frames[2], "the digits and the dial draw differently");
+    }
+
+    #[test]
+    fn the_saved_aod_style_counts_only_before_the_user_picks_one() {
+        let (f, i) = (fonts(), info());
+        let mut app = App::new(Screen::Settings, W, H, PPD);
+        app.frame(&f, &i);
+        app.set_saved_aod_style(AodStyle::Dial);
+        assert_eq!(app.state.aod_style, AodStyle::Dial, "the saved style shows before the user picks one");
+        app.top_mut().1 = app.max_scroll();
+        tap(&mut app, &f, &i, Action::AodStyle);
+        assert_eq!(app.state.aod_style, AodStyle::Digits, "a tap cycles from the saved style on");
+        app.set_saved_aod_style(AodStyle::Offset);
+        assert_eq!(app.state.aod_style, AodStyle::Digits, "the saved style does not overrule the user's pick");
     }
 
     #[test]

@@ -30,9 +30,10 @@ use skyward_net::http::Servers;
 use skyward_net::release::{Installed, Release, Unanswered};
 use skyward_net::wlan::{Power as WlanPower, Wlan};
 use skyward_ui::app::{
-    App, Asked, BackupAt, BackupEnd, BackupEntry, BackupRefusal, ClashChoice, Data, DownloadEnd, Effect, EraseStop, FileKind, FileOp,
-    FileRow, FileTask, FsAction, FsRow, Have, Held, ItemEnd, ItemState, JobEnd, Keys, MountFailure, Part, PartKind, PartStop, Place,
-    RenameRefused, Screen, Shot, Target, UsbDrive, UsbLink, Wipe, DATA_OPENING, DATA_PARTITION, DOWNLOADS, INSTALL_UNFINISHED, USB_DRIVE,
+    App, AodStyle, Asked, BackupAt, BackupEnd, BackupEntry, BackupRefusal, ClashChoice, Data, DownloadEnd, Effect, EraseStop, FileKind,
+    FileOp, FileRow, FileTask, FsAction, FsRow, Have, Held, ItemEnd, ItemState, JobEnd, Keys, MountFailure, Part, PartKind, PartStop,
+    Place, RenameRefused, Screen, Shot, Target, UsbDrive, UsbLink, Wipe, DATA_OPENING, DATA_PARTITION, DOWNLOADS, INSTALL_UNFINISHED,
+    USB_DRIVE,
 };
 use skyward_ui::surface::kms::KmsSurface;
 use skyward_ui::{Canvas, Fonts, Lang, Surface};
@@ -780,6 +781,42 @@ fn answer(request: Request, fastboot: bool) -> Vec<Effect> {
 fn clock_and_day(lang: Lang, zone: usize) -> Result<(String, String)> {
     let unix = unix_now()?;
     Ok((skyward_ui::fmt::clock(unix, zone), skyward_ui::fmt::aod_date(lang, unix, zone)))
+}
+
+/// Where the AOD's chosen look is kept: the owner's storage, beside the
+/// logs and the backups, where it survives a restart of the recovery and
+/// shows in the file manager too.
+const AOD_STYLE_FILE: &str = "/sdcard/Skyward/settings";
+
+/// Read the look the previous boots kept of the AOD's clock, once the
+/// owner's storage has opened.
+fn saved_aod_style() -> Option<AodStyle> {
+    let text = fs::read_to_string(AOD_STYLE_FILE).ok()?;
+    let look = text.lines().find(|l| l.starts_with("aod_style"))?.split_once('=')?.1.trim();
+    Some(match look {
+        "offset" => AodStyle::Offset,
+        "dial" => AodStyle::Dial,
+        _ => AodStyle::Digits,
+    })
+}
+
+/// Keep the AOD's look for the boots to come. A storage that cannot be
+/// written — the data partition still closed — keeps it only until then.
+fn save_aod_style(style: AodStyle) -> Result<()> {
+    let look = match style {
+        AodStyle::Digits => "digits",
+        AodStyle::Offset => "offset",
+        AodStyle::Dial => "dial",
+    };
+    let kept = (|| -> Result<()> {
+        fs::create_dir_all("/sdcard/Skyward").context("make /sdcard/Skyward")?;
+        fs::write(AOD_STYLE_FILE, format!("aod_style = {look}\n")).context("write the AOD's look")
+    })();
+    match kept {
+        Ok(()) => skyward_sys::kmsg(&format!("the AOD keeps the {look} look for the boots to come"))?,
+        Err(e) => skyward_sys::kmsg(&format!("the AOD's look is not kept: {e:#}"))?,
+    }
+    Ok(())
 }
 
 /// Tell the kernel log how the data partition was mounted, where opening
@@ -1710,6 +1747,12 @@ pub fn run(cfg: &DeviceConfig, font: &Path, mono: &Path, request: bcb::Request, 
                     if let Some(mounted) = &opening.mounted {
                         log_mounted(mounted)?;
                     }
+                    // The owner's storage is open: the look the previous
+                    // boots kept counts, until the user picks one of their
+                    // own.
+                    if let Some(style) = saved_aod_style() {
+                        app.set_saved_aod_style(style);
+                    }
                     closed = opening.closed;
                     show_closed(&mut app, &closed)?;
                 }
@@ -1818,6 +1861,7 @@ pub fn run(cfg: &DeviceConfig, font: &Path, mono: &Path, request: bcb::Request, 
                             kept = false;
                         }
                     }
+                    Effect::SaveAodStyle(style) => save_aod_style(style)?,
                     Effect::FactoryReset => {
                         ensure!(eraser.is_none(), "erasing is under way already");
                         if !withhold(&mut transfer, &mut app, now)? {
