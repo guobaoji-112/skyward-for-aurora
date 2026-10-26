@@ -25,7 +25,7 @@ writes = [{ path = "/sys/class/touch/touch_dev/enable_touch_raw", value = "0" }]
 # own library folder does not carry, out of the installed system's.
 [[service]]
 path = "/system/bin/sh"
-args = ["-c", "mkdir -p /kmlibs && cp /mnt/system/system/lib64/libhardware.so /mnt/system/system/lib64/libvndksupport.so /mnt/system/system/lib64/libdmabufheap.so /mnt/system/system/lib64/libc++.so /mnt/system/system/lib64/libnetutils.so /mnt/system/system/lib64/bootstrap/libdl_android.so /kmlibs/ && printf '[recovery]\\nnamespace.default.isolated = false\\n' > /kmlibs/ld.config.txt && printf '#!/system/bin/sh\\nexport LD_CONFIG_FILE=/kmlibs/ld.config.txt\\nexec \"$@\"\\n' > /kmlibs/km.sh && chmod 755 /kmlibs/km.sh"]
+args = ["-c", "mkdir -p /kmlibs && cp /mnt/system/system/lib64/libhardware.so /mnt/system/system/lib64/libvndksupport.so /mnt/system/system/lib64/libdmabufheap.so /mnt/system/system/lib64/libc++.so /mnt/system/system/lib64/libnetutils.so /mnt/system/system/lib64/bootstrap/libdl_android.so /kmlibs/ && printf '[recovery]\\nnamespace.default.isolated = false\\n' > /kmlibs/ld.config.txt && printf '#!/system/bin/sh\\nexport LD_CONFIG_FILE=/kmlibs/ld.config.txt\\nexec \"$@\"\\n' > /kmlibs/km.sh && chmod 755 /kmlibs/km.sh && V=$(ls -d /system_dlkm/lib/modules/*/kernel/net/rfkill 2>/dev/null | head -1) && mount --bind $V/rfkill.ko /system_dlkm/flatten/lib/modules/rfkill.ko"]
 oneshot = true
 user = "root"
 groups = ["root"]
