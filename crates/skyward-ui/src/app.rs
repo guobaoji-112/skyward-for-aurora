@@ -502,7 +502,6 @@ pub enum Switch {
     /// Show the password typed rather than a dot for each character.
     ShowPassword,
 }
-
 /// What a backup can take, in the order the backup page lists it.
 pub const BACKUP_PARTS: [Text; 4] = [
     ["启动分区", "啟動分割區", "Boot partitions"],
@@ -1071,6 +1070,33 @@ impl AodStyle {
     }
 }
 
+/// The settings the owner's storage kept, as read back; a look or level
+/// the file does not name comes as the default it would start at.
+#[derive(Clone, Copy, Debug)]
+pub struct SavedSettings {
+    pub aod_style: AodStyle,
+    pub brightness: f32,
+    pub dark: bool,
+    pub lang: Lang,
+    pub screen_off: usize,
+    pub vibrate: bool,
+    pub vibration: f32,
+}
+
+impl Default for SavedSettings {
+    fn default() -> Self {
+        SavedSettings {
+            aod_style: AodStyle::Digits,
+            brightness: SLIDER_START,
+            dark: false,
+            lang: Lang::Hans,
+            screen_off: 3,
+            vibrate: true,
+            vibration: SLIDER_START,
+        }
+    }
+}
+
 /// How far up the glass a finger must swipe for the AOD to believe it
 /// meant to wake the panel, in dp: farther than a pocket shifts.
 const WAKE_SWIPE_DP: f32 = 64.0;
@@ -1084,6 +1110,11 @@ const AOD_SPOTS: [(f32, f32); 4] = [(0.0, 0.0), (5.0, -3.0), (0.0, 6.0), (-5.0, 
 const AOD_INK: Rgba = Rgba::rgb(0xC0, 0xC0, 0xC0);
 const AOD_DIM: Rgba = Rgba::rgb(0x82, 0x82, 0x82);
 const AOD_FAINT: Rgba = Rgba::rgb(0x52, 0x52, 0x52);
+
+/// How long changed settings wait after the last change before they are
+/// written to the owner's storage, so a slider dragged across the page
+/// writes once.
+const SETTINGS_SAVE_DELAY: u64 = 2000;
 
 /// The time zones the clock and the times on the pages can keep, in the
 /// order their page lists them: the name, the cities it covers, and the
@@ -1841,8 +1872,6 @@ pub enum Effect {
     /// open, and otherwise held until it is, telling how it went with
     /// [`App::screenshot_saved`].
     Screenshot { storage: bool },
-    /// Keep the AOD's clock in this look for the boots to come.
-    SaveAodStyle(AodStyle),
     /// Offer internal storage to a computer over USB, or stop.
     FileTransfer(bool),
     /// Start receiving a package over USB.
@@ -2512,6 +2541,11 @@ pub struct App {
     /// Whether the user has picked the AOD's clock style this boot; what
     /// the owner's storage kept only counts before they have.
     aod_style_chosen: bool,
+    /// Settings the user has changed since the owner's storage was last
+    /// written; the write comes a moment after the last change.
+    settings_dirty: bool,
+    /// When a pending settings write matures.
+    settings_due_at: Option<u64>,
     /// When the screen was last touched or a key pressed; set on the first
     /// tick, so the time before the UI started does not count.
     active: Option<u64>,
@@ -2602,6 +2636,8 @@ impl App {
             term: None,
             display_on: true,
             aod_style_chosen: false,
+            settings_dirty: false,
+            settings_due_at: None,
             active: None,
             woke_at: None,
             bright: full_brightness(),
@@ -2732,6 +2768,11 @@ impl App {
     /// deadline goes away.
     pub fn tick(&mut self, now: u64) -> Vec<Effect> {
         let mut fx = Vec::new();
+        // Settings the user has changed wait a moment for the last change,
+        // then go to the owner's storage once.
+        if self.settings_dirty && self.settings_due_at.is_none() {
+            self.settings_due_at = Some(now + SETTINGS_SAVE_DELAY);
+        }
         // The key waiting for its partner in a screenshot, left alone long
         // enough, does what it does alone.
         if self.chord.is_some_and(|(_, at)| now >= at + CHORD_MS) {
@@ -2933,14 +2974,48 @@ impl App {
         self.stir(now);
     }
 
-    /// The look the owner's storage kept of the AOD's clock, which only
-    /// counts before the user picks one of their own this boot.
-    pub fn set_saved_aod_style(&mut self, style: AodStyle) {
-        if self.aod_style_chosen || self.state.aod_style == style {
-            return;
+    /// The settings the owner's storage kept, which only count where the
+    /// user has left each at the value it starts at this boot.
+    pub fn set_saved_settings(&mut self, saved: SavedSettings) {
+        if self.state.brightness == SLIDER_START {
+            self.state.brightness = saved.brightness;
         }
-        self.state.aod_style = style;
+        if !self.state.dark && saved.dark {
+            self.state.dark = saved.dark;
+        }
+        if self.state.lang == Lang::Hans {
+            self.state.lang = saved.lang;
+        }
+        if self.state.screen_off == 3 {
+            self.state.screen_off = saved.screen_off;
+        }
+        if self.state.vibrate == State::default().vibrate {
+            self.state.vibrate = saved.vibrate;
+        }
+        if self.state.vibration == SLIDER_START {
+            self.state.vibration = saved.vibration;
+        }
+        if !self.aod_style_chosen && self.state.aod_style == AodStyle::Digits {
+            self.state.aod_style = saved.aod_style;
+        }
         self.refresh();
+    }
+
+    /// Whether the changed settings are due to be written now; the write
+    /// comes a moment after the last change, so a slider dragged across
+    /// the page writes once, not at every step.
+    pub fn settings_due(&mut self, now: u64) -> bool {
+        if !self.settings_dirty {
+            return false;
+        }
+        match self.settings_due_at {
+            Some(due) if now >= due => {
+                self.settings_dirty = false;
+                self.settings_due_at = None;
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Whether the panel lit so recently that a touch or key should only
@@ -4870,6 +4945,7 @@ impl App {
                     self.state.dark = dark;
                     self.refresh();
                 }
+                self.settings_dirty = true;
             }
             // The switch moves at once; the runtime then tells how the WLAN
             // came up, or went off.
@@ -5056,12 +5132,14 @@ impl App {
             Action::ScreenOff(k) => {
                 self.state.screen_off = k;
                 self.refresh();
+                self.settings_dirty = true;
             }
             Action::AodStyle => {
                 self.state.aod_style = self.state.aod_style.next();
                 self.aod_style_chosen = true;
                 self.refresh();
-                return vec![Effect::SaveAodStyle(self.state.aod_style)];
+                self.settings_dirty = true;
+                return Vec::new();
             }
             Action::TimeZone(k) => {
                 self.state.time_zone = k;
@@ -5070,6 +5148,7 @@ impl App {
             Action::Language(l) => {
                 self.state.lang = l;
                 self.refresh();
+                self.settings_dirty = true;
             }
             Action::BackupPart(k) => {
                 self.state.backup[k] = !self.state.backup[k];
@@ -6604,6 +6683,7 @@ impl App {
             Slider::Vibration => &mut self.state.vibration,
         };
         *value = level.clamp(if which == Slider::Brightness { MIN_BRIGHTNESS } else { 0.0 }, 1.0);
+        self.settings_dirty = true;
         let value = *value;
         if let Some(fr) = self.frame.as_mut() {
             fr.canvas.fill_rect(track.x, track.y, track.w, track.h, t.pal.card);
@@ -8368,17 +8448,37 @@ mod tests {
     }
 
     #[test]
-    fn the_saved_aod_style_counts_only_before_the_user_picks_one() {
+    fn the_saved_settings_count_only_before_the_user_picks_theirs() {
         let (f, i) = (fonts(), info());
         let mut app = App::new(Screen::Settings, W, H, PPD);
         app.frame(&f, &i);
-        app.set_saved_aod_style(AodStyle::Dial);
+        app.set_saved_settings(SavedSettings {
+            aod_style: AodStyle::Dial,
+            brightness: 0.9,
+            dark: true,
+            lang: Lang::En,
+            screen_off: 0,
+            vibrate: false,
+            vibration: 0.9,
+        });
         assert_eq!(app.state.aod_style, AodStyle::Dial, "the saved style shows before the user picks one");
+        assert_eq!(app.state.brightness, 0.9, "the saved brightness shows too");
+        assert!(app.state.dark, "the saved theme shows too");
+        assert_eq!(app.state.lang, Lang::En, "the saved language shows too");
+        assert_eq!(app.state.screen_off, 0, "the saved screen-off shows too");
+        assert!(!app.state.vibrate, "the saved switch shows too");
+        assert_eq!(app.state.vibration, 0.9, "the saved vibration shows too");
         app.top_mut().1 = app.max_scroll();
         tap(&mut app, &f, &i, Action::AodStyle);
         assert_eq!(app.state.aod_style, AodStyle::Digits, "a tap cycles from the saved style on");
-        app.set_saved_aod_style(AodStyle::Offset);
+        app.set_saved_settings(SavedSettings::default());
         assert_eq!(app.state.aod_style, AodStyle::Digits, "the saved style does not overrule the user's pick");
+        assert_eq!(app.state.brightness, 0.9, "nor does it overrule the brightness the user left");
+        assert!(app.state.dark, "nor the theme the user left");
+        assert_eq!(app.state.lang, Lang::En, "nor the language the user left");
+        assert_eq!(app.state.screen_off, 0, "nor the screen-off the user left");
+        assert!(!app.state.vibrate, "nor the switch the user left");
+        assert_eq!(app.state.vibration, 0.9, "nor the vibration the user left");
     }
 
     #[test]

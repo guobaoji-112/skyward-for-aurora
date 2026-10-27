@@ -1,13 +1,16 @@
 ![Skyward Recovery](assets/hero.jpg)
 
-# Skyward
+# Skyward for nuwa
 
 English | [简体中文](README.zh-CN.md)
 
-Skyward is a recovery written in Rust, from scratch.
+Skyward is a recovery written in Rust, from scratch. This fork is dedicated to
+one phone: the **Xiaomi 13 Pro** (codename `nuwa`). For the other devices the
+upstream project supports, see [kirklin/skyward](https://github.com/kirklin/skyward).
+
+![Skyward running on the Xiaomi 13 Pro: About, home, settings and the file manager](docs/overview.webp)
 
 <p align="center">
-  <img src="assets/home.png" width="30%" alt="Home">
   <img src="assets/settings-dark.png" width="30%" alt="Settings in dark mode">
   <img src="assets/time-zone.png" width="30%" alt="Time zone">
 </p>
@@ -26,40 +29,27 @@ Skyward is a recovery written in Rust, from scratch.
 - Reboot to system, recovery, fastboot, bootloader or EDL, and switch slots
 - Light and dark themes; Simplified Chinese, Traditional Chinese and English
 
-## Supported devices
+## Supported device
 
 | Device | Codename | Tested system version |
 | --- | --- | --- |
-| Xiaomi 17 Ultra | `nezha` | OS4.0.4.0.XPACNXM (Android 17) |
-| Xiaomi 13 Ultra | `ishtar` | OS3.0.308.0.WMACNXM (Android 16) |
 | Xiaomi 13 Pro | `nuwa` | OS4.0.24.0.XEOCNXM (Android 17) |
 
-### 🚧 Under construction
-
-These images are built from each phone's stock firmware and have not been tried
-on the phone. They set up the screen, touch, WLAN and vibration, and do not decrypt
-the data partition.
-
-| Device | Codename | Built on |
-| --- | --- | --- |
-| 🚧 Xiaomi 17 | `pudding` | OS4.0.4.0.XPCCNXM (Android 17) |
-| 🚧 Xiaomi 17 Pro | `pandora` | OS4.0.4.0.XBLCNXM (Android 17) |
-| 🚧 Xiaomi 17 Pro Max | `popsicle` | OS4.0.4.0.XPBCNXM (Android 17) |
-| 🚧 REDMI K90 Pro Max | `myron` | OS4.0.4.0.XPMCNXM (Android 17) |
-| 🚧 REDMI K100 Pro | `athens` | OS4.0.4.0.XPICNXM (Android 17) |
-| 🚧 REDMI K100 Pro Max | `songyuan` | OS4.0.4.0.XGNCNXM (Android 17) |
+The recovery image is built on the stock recovery of OS3.0.311.0.WMBCNXM, the
+build `devices/nuwa.toml` names.
 
 ## Installing
 
-Skyward needs an unlocked bootloader. Download the zip for your phone from
-[Releases](https://github.com/kirklin/skyward/releases), where each shows as the
-phone's model and codename, such as Xiaomi 17 Ultra (nezha). Check it against
-`SHA256SUMS`, unzip it, and flash the image inside to the recovery partition of
-the slot the phone runs from, with the phone in fastboot mode:
+Skyward needs an unlocked bootloader. Download the zip from this repository's
+[Releases](https://github.com/pubglite55/skyward-for-nuwa/releases), which are
+published from tags named `nuwa-v*`. Each file is named
+`skyward-nuwa-<version>-<stock build>`. Check it against `SHA256SUMS.txt`,
+unzip it, and flash the image inside to the recovery partition of the slot the
+phone runs from, with the phone in fastboot mode:
 
 ```sh
-unzip skyward-v0.1.1-nezha-OS4.0.4.0.XPACNXM.zip
-fastboot flash recovery skyward-v0.1.1-nezha-OS4.0.4.0.XPACNXM.img
+unzip skyward-nuwa-v1.1-OS3.0.311.0.WMBCNXM.zip
+fastboot flash recovery skyward-nuwa-v1.1-OS3.0.311.0.WMBCNXM.img
 fastboot reboot recovery
 ```
 
@@ -91,20 +81,20 @@ package on Xiaomi's server, reading only the part of the package the partition i
 in, and checks its SHA-256 against the device file:
 
 ```sh
-target/release/skyward-pack stock --config devices/nezha.toml --out target/stock/nezha/recovery.img
+target/release/skyward-pack stock --config devices/nuwa.toml --out target/stock/nuwa/recovery.img
 ```
 
 Then it builds the image on top of it:
 
 ```sh
 target/release/skyward-pack recovery \
-  --stock target/stock/nezha/recovery.img \
+  --stock target/stock/nuwa/recovery.img \
   --binary target/aarch64-linux-android/release/skyward \
-  --config devices/nezha.toml \
+  --config devices/nuwa.toml \
   --font resources/fonts/MiSansVF.ttf \
   --mono resources/fonts/KirkMono-Regular.ttf \
   --mono-license resources/fonts/KirkMono-OFL.txt \
-  --out target/skyward-nezha.img
+  --out target/skyward-nuwa.img
 ```
 
 Tests and lints run on the computer; what runs only on the phone is linted for it:

@@ -32,8 +32,8 @@ use skyward_net::wlan::{Power as WlanPower, Wlan};
 use skyward_ui::app::{
     App, AodStyle, Asked, BackupAt, BackupEnd, BackupEntry, BackupRefusal, ClashChoice, Data, DownloadEnd, Effect, EraseStop, FileKind,
     FileOp, FileRow, FileTask, FsAction, FsRow, Have, Held, ItemEnd, ItemState, JobEnd, Keys, MountFailure, Part, PartKind, PartStop,
-    Place, RenameRefused, Screen, Shot, Target, UsbDrive, UsbLink, Wipe, DATA_OPENING, DATA_PARTITION, DOWNLOADS, INSTALL_UNFINISHED,
-    USB_DRIVE,
+    Place, RenameRefused, SavedSettings, Screen, Shot, State, Target, UsbDrive, UsbLink, Wipe, DATA_OPENING, DATA_PARTITION, DOWNLOADS,
+    INSTALL_UNFINISHED, USB_DRIVE,
 };
 use skyward_ui::surface::kms::KmsSurface;
 use skyward_ui::{Canvas, Fonts, Lang, Surface};
@@ -783,40 +783,86 @@ fn clock_and_day(lang: Lang, zone: usize) -> Result<(String, String)> {
     Ok((skyward_ui::fmt::clock(unix, zone), skyward_ui::fmt::aod_date(lang, unix, zone)))
 }
 
-/// Where the AOD's chosen look is kept: the owner's storage, beside the
-/// logs and the backups, where it survives a restart of the recovery and
-/// shows in the file manager too.
-const AOD_STYLE_FILE: &str = "/sdcard/Skyward/settings";
+/// Where the chosen settings are kept: the owner's storage, beside the
+/// logs and the backups, where they survive a restart of the recovery and
+/// show in the file manager too.
+const SETTINGS_FILE: &str = "/sdcard/Skyward/settings";
 
-/// Read the look the previous boots kept of the AOD's clock, once the
-/// owner's storage has opened.
-fn saved_aod_style() -> Option<AodStyle> {
-    let text = fs::read_to_string(AOD_STYLE_FILE).ok()?;
-    let look = text.lines().find(|l| l.starts_with("aod_style"))?.split_once('=')?.1.trim();
-    Some(match look {
-        "offset" => AodStyle::Offset,
-        "dial" => AodStyle::Dial,
-        _ => AodStyle::Digits,
-    })
+/// Read the settings the previous boots kept, once the owner's storage has
+/// opened; a key the file does not name stays at the value it starts at.
+fn saved_settings() -> SavedSettings {
+    let mut saved = SavedSettings::default();
+    let Ok(text) = fs::read_to_string(SETTINGS_FILE) else { return saved };
+    for line in text.lines() {
+        let Some((key, value)) = line.split_once('=') else { continue };
+        match key.trim() {
+            "aod_style" => {
+                saved.aod_style = match value.trim() {
+                    "offset" => AodStyle::Offset,
+                    "dial" => AodStyle::Dial,
+                    _ => AodStyle::Digits,
+                }
+            }
+            "brightness" => {
+                if let Ok(v) = value.trim().parse() {
+                    saved.brightness = v;
+                }
+            }
+            "dark" => saved.dark = value.trim() == "true",
+            "language" => {
+                saved.lang = match value.trim() {
+                    "hant" => Lang::Hant,
+                    "en" => Lang::En,
+                    _ => Lang::Hans,
+                }
+            }
+            "screen_off" => {
+                if let Ok(v) = value.trim().parse() {
+                    saved.screen_off = v;
+                }
+            }
+            "vibrate" => saved.vibrate = value.trim() == "true",
+            "vibration" => {
+                if let Ok(v) = value.trim().parse() {
+                    saved.vibration = v;
+                }
+            }
+            _ => {}
+        }
+    }
+    saved
 }
 
-/// Keep the AOD's look for the boots to come. A storage that cannot be
-/// written — the data partition still closed — keeps it only until then.
-fn save_aod_style(style: AodStyle) -> Result<()> {
-    let look = match style {
+/// Write the settings as they stand, for the boots to come. A storage that
+/// cannot be written — the data partition still closed — keeps them only
+/// until it opens, and keeps this from failing either way.
+fn write_settings(state: &State) {
+    let look = match state.aod_style {
         AodStyle::Digits => "digits",
         AodStyle::Offset => "offset",
         AodStyle::Dial => "dial",
     };
+    let language = match state.lang {
+        Lang::Hans => "hans",
+        Lang::Hant => "hant",
+        Lang::En => "en",
+    };
+    let text = format!(
+        "aod_style = {look}\nbrightness = {:.3}\ndark = {}\nlanguage = {language}\nscreen_off = {}\nvibrate = {}\nvibration = {:.3}\n",
+        state.brightness, state.dark, state.screen_off, state.vibrate, state.vibration
+    );
     let kept = (|| -> Result<()> {
         fs::create_dir_all("/sdcard/Skyward").context("make /sdcard/Skyward")?;
-        fs::write(AOD_STYLE_FILE, format!("aod_style = {look}\n")).context("write the AOD's look")
+        fs::write(SETTINGS_FILE, text).context("write the settings")
     })();
     match kept {
-        Ok(()) => skyward_sys::kmsg(&format!("the AOD keeps the {look} look for the boots to come"))?,
-        Err(e) => skyward_sys::kmsg(&format!("the AOD's look is not kept: {e:#}"))?,
+        Ok(()) => {
+            let _ = skyward_sys::kmsg("the settings are kept where the owner's storage keeps them");
+        }
+        Err(e) => {
+            let _ = skyward_sys::kmsg(&format!("the settings are not kept: {e:#}"));
+        }
     }
-    Ok(())
 }
 
 /// Tell the kernel log how the data partition was mounted, where opening
@@ -1313,6 +1359,11 @@ pub fn run(cfg: &DeviceConfig, font: &Path, mono: &Path, request: bcb::Request, 
                 other => unreachable!("time passing asks for nothing but a tap of the motor, not {other:?}"),
             }
         }
+        // Settings the user changed go to the owner's storage a moment
+        // after the last change, once, where the boots to come read them.
+        if app.settings_due(now) {
+            write_settings(&app.state);
+        }
         let (time, day) = clock_and_day(app.state.lang, app.state.time_zone)?;
         if time != shown_clock || day != shown_day {
             shown_clock = time;
@@ -1747,12 +1798,10 @@ pub fn run(cfg: &DeviceConfig, font: &Path, mono: &Path, request: bcb::Request, 
                     if let Some(mounted) = &opening.mounted {
                         log_mounted(mounted)?;
                     }
-                    // The owner's storage is open: the look the previous
-                    // boots kept counts, until the user picks one of their
-                    // own.
-                    if let Some(style) = saved_aod_style() {
-                        app.set_saved_aod_style(style);
-                    }
+                    // The owner's storage is open: the settings the previous
+                    // boots kept count, where the user has left each at the
+                    // value it starts at.
+                    app.set_saved_settings(saved_settings());
                     closed = opening.closed;
                     show_closed(&mut app, &closed)?;
                 }
@@ -1861,7 +1910,6 @@ pub fn run(cfg: &DeviceConfig, font: &Path, mono: &Path, request: bcb::Request, 
                             kept = false;
                         }
                     }
-                    Effect::SaveAodStyle(style) => save_aod_style(style)?,
                     Effect::FactoryReset => {
                         ensure!(eraser.is_none(), "erasing is under way already");
                         if !withhold(&mut transfer, &mut app, now)? {

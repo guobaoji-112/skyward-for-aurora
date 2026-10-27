@@ -33,15 +33,15 @@ fn lang() -> Lang {
 }
 
 /// What a shell in the recovery writes for a few commands, colours and all.
-const SHELL_SAMPLE: &[u8] = b"ishtar:/ # getprop ro.product.device\r\nishtar\r\n\
-ishtar:/ # ls --color=always /\r\n\
+const SHELL_SAMPLE: &[u8] = b"nuwa:/ # getprop ro.product.device\r\nnuwa\r\n\
+nuwa:/ # ls --color=always /\r\n\
 \x1b[1;34macct\x1b[0m  \x1b[1;34mapex\x1b[0m  \x1b[1;36mbin\x1b[0m  \x1b[1;34mconfig\x1b[0m  \x1b[1;34mdata\x1b[0m  \x1b[1;34mdev\x1b[0m\r\n\
 \x1b[1;36metc\x1b[0m  \x1b[1;32minit\x1b[0m  \x1b[1;34mmetadata\x1b[0m  \x1b[1;34mmnt\x1b[0m  \x1b[1;34modm\x1b[0m\r\n\
 \x1b[1;34mproc\x1b[0m  \x1b[1;34msys\x1b[0m  \x1b[1;34msystem\x1b[0m  \x1b[1;34mtmp\x1b[0m  \x1b[1;34mvendor\x1b[0m\r\n\
-ishtar:/ # df -h /metadata\r\n\
+nuwa:/ # df -h /metadata\r\n\
 Filesystem      Size Used Avail Use% Mounted on\r\n\
 /dev/block/sda9  59M 7.0M   52M  12% /metadata\r\n\
-ishtar:/ # ";
+nuwa:/ # ";
 
 /// A script as the editor shows it: an indented line, a comment in
 /// Chinese, and lines long enough to wrap.
@@ -128,7 +128,7 @@ fn main() -> Result<()> {
         eprintln!("axis {tag}: {min}..{max} (default {def})");
     }
 
-    let cfg = DeviceConfig::load(root.join("devices/nezha.toml"))?;
+    let cfg = DeviceConfig::load(root.join("devices/nuwa.toml"))?;
     let (w, h) = (cfg.display.width, cfg.display.height);
     let ppd = cfg.display.density as f32 / 160.0;
     let light = Theme::light(w, h, ppd);
@@ -147,7 +147,7 @@ fn main() -> Result<()> {
         _ => {}
     }
 
-    let info = nezha(&cfg);
+    let info = nuwa(&cfg);
     let pending = DeviceInfo { snapshot: SnapshotState::Snapshotted, ..info.clone() };
     let pattern = Data::Locked { user: 0, keys: Keys::Pattern, checking: false };
     // Whole pages, the way a long screenshot shows them. The About page's
@@ -230,7 +230,7 @@ fn main() -> Result<()> {
         (
             "38-sideload-refused",
             false,
-            Install::Finished { outcome: Outcome::Refused(Refusal::OtherDevice("ishtar".into())), damage: None },
+            Install::Finished { outcome: Outcome::Refused(Refusal::OtherDevice("nuwa".into())), damage: None },
         ),
         (
             "39-sideload-failed",
@@ -327,7 +327,7 @@ fn main() -> Result<()> {
         app.set_files("/sdcard/Download".into(), Ok(sample_download()), LISTED);
         app.state.file = sample_download().into_iter().find(|e| e.name == name);
     };
-    let ota = "/sdcard/Download/OTA_ishtar_OS3.0.305.0.WMACNXM_20260412_full_package_signed_for_recovery_install.zip";
+    let ota = "/sdcard/Download/OTA_nuwa_OS3.0.305.0.WMACNXM_20260412_full_package_signed_for_recovery_install.zip";
     let copying = || FileTask::Copy { path: ota.into(), into: "/sdcard/Skyward".into() };
     let from_storage = |app: &mut App, install: Install| {
         app.state.source = Source::File(Place::Storage);
@@ -339,7 +339,7 @@ fn main() -> Result<()> {
         let mut lines = vec![
             " ",
             "******************************",
-            "  Example ROM 2.1 for ishtar",
+            "  Example ROM 2.1 for nuwa",
             "******************************",
             " ",
             "- 正在检查设备型号",
@@ -357,7 +357,7 @@ fn main() -> Result<()> {
     };
     let script = |app: &mut App, install: Install, failed: bool| {
         from_storage(app, install);
-        app.state.package_name = Some("ExampleROM-2.1-ishtar.zip".into());
+        app.state.package_name = Some("ExampleROM-2.1-nuwa.zip".into());
         app.state.script_output = said(failed);
     };
     let usb_page = Screen::Choose(Place::UsbDrive);
@@ -379,7 +379,7 @@ fn main() -> Result<()> {
         ("19-choose-usb-light", usb_page, false, &|app| {
             app.set_usb_drive(Some(UsbDrive::Shown));
             let made = 1_790_380_800;
-            let rows = vec![folder("ROMs", 4, made), file("boot.img", 100_663_296, made), file("ishtar-ota-OS3.0.306.0.WMACNXM.zip", 7_103_043_868, made)];
+            let rows = vec![folder("ROMs", 4, made), file("boot.img", 100_663_296, made), file("nuwa-ota-OS3.0.306.0.WMACNXM.zip", 7_103_043_868, made)];
             app.set_place(Place::UsbDrive, String::new(), Ok(rows), LISTED);
         }),
         ("20-install-usb-checking", Screen::Installing, false, &|app| {
@@ -403,7 +403,7 @@ fn main() -> Result<()> {
             from_storage(app, Install::Finished { outcome: Outcome::Refused(Refusal::Unknown), damage: None })
         }),
         ("20-install-storage-failed", Screen::Installing, false, &|app| {
-            let gone = "read /sdcard/Download/OTA_ishtar_OS3.0.305.0.WMACNXM.zip: Input/output error (os error 5)";
+            let gone = "read /sdcard/Download/OTA_nuwa_OS3.0.305.0.WMACNXM.zip: Input/output error (os error 5)";
             from_storage(app, Install::Finished { outcome: Outcome::Failed(Failure::Unreadable(gone.into())), damage: Some(Damage::System) })
         }),
         ("20-install-script-confirming", Screen::Installing, false, &|app| {
@@ -657,7 +657,7 @@ fn main() -> Result<()> {
             app.part_at(1);
         }),
         ("168-installing-light-asked-locked", Screen::Home, false, &|app| {
-            app.start_asked(false, "/sdcard/Download/ishtar-ota_full-OS3.0.308.0.WMACNXM-user-16.0.zip".into());
+            app.start_asked(false, "/sdcard/Download/nuwa-ota_full-OS3.0.308.0.WMACNXM-user-16.0.zip".into());
             app.asked_locked(0, 0);
         }),
         ("169-installing-dark-asked-opening", Screen::Home, true, &|app| {
@@ -705,9 +705,9 @@ fn main() -> Result<()> {
             app.part_work_ended(Ok(()), 0);
         }),
         ("178-file-info-light-package", Screen::FileInfo, false, &|app| {
-            in_download(app, "OTA_ishtar_OS3.0.305.0.WMACNXM_20260412_full_package_signed_for_recovery_install.zip")
+            in_download(app, "OTA_nuwa_OS3.0.305.0.WMACNXM_20260412_full_package_signed_for_recovery_install.zip")
         }),
-        ("179-file-info-dark-image", Screen::FileInfo, true, &|app| in_download(app, "skyward-recovery-ishtar.img")),
+        ("179-file-info-dark-image", Screen::FileInfo, true, &|app| in_download(app, "skyward-recovery-nuwa.img")),
         ("180-install-opened-light-checking", Screen::Installing, false, &|app| {
             app.state.source = Source::Opened { drive: false };
             app.state.install = Install::Checking { size: 7_014_220_000, stage: None };
@@ -771,7 +771,7 @@ fn main() -> Result<()> {
         ("75-terminal-light-ended", Screen::Terminal, false, &|app| {
             let (rows, cols) = app.term_size(&fonts);
             app.term_started(rows, cols);
-            app.term_output(b"ishtar:/ # exit\r\n");
+            app.term_output(b"nuwa:/ # exit\r\n");
             app.term_ended(TermEnd::Exited(0));
         }),
         ("55-language-light", Screen::Language, false, &|_| {}),
@@ -1229,9 +1229,9 @@ fn sample_download() -> Vec<FileRow> {
         folder("安装包", 68, this_year),
         file("1d9bf122-130e-4db7-ae55-460c84819f0e.pdf", 1_090_000, this_year),
         file("2021一带一路暨金砖大赛之物联网技术及其在智慧城市与工业互联网领域的应用创新赛表彰文件.pdf", 634_960, earlier),
-        file("OTA_ishtar_OS3.0.305.0.WMACNXM_20260412_full_package_signed_for_recovery_install.zip", 7_014_220_000, this_year),
+        file("OTA_nuwa_OS3.0.305.0.WMACNXM_20260412_full_package_signed_for_recovery_install.zip", 7_014_220_000, this_year),
         file("README.txt", 900, today),
-        file("skyward-recovery-ishtar.img", 104_857_600, today),
+        file("skyward-recovery-nuwa.img", 104_857_600, today),
     ]
 }
 
@@ -1242,7 +1242,7 @@ fn sample_types() -> Vec<FileRow> {
     let mut rows: Vec<FileRow> = [
         ("boot.img", 100_663_296),
         ("IMG_20261021_143005.jpg", 4_812_000),
-        ("update-ishtar.zip", 1_402_000_000),
+        ("update-nuwa.zip", 1_402_000_000),
         ("app-release.apk", 11_300_000),
         ("recovery.log", 486_000),
         ("VID_20261020_201512.mp4", 182_400_000),
@@ -1345,13 +1345,13 @@ fn router_link() -> Link {
     }
 }
 
-/// A newer system than the 17 Ultra's own, as the update server tells of
+/// A newer system than the 13 Pro's own, as the update server tells of
 /// one.
 fn newest() -> Release {
     Release {
-        version: "OS4.0.6.0.XPACNXM".into(),
-        name: "nezha-ota_full-OS4.0.6.0.XPACNXM-user-17.0-3f2a9c81d4.zip".into(),
-        urls: vec!["https://ultimateota.d.miui.com/OS4.0.6.0.XPACNXM/nezha-ota_full-OS4.0.6.0.XPACNXM-user-17.0-3f2a9c81d4.zip".into()],
+        version: "OS4.0.25.0.XEOCNXM".into(),
+        name: "nuwa-ota_full-OS4.0.25.0.XEOCNXM-user-17.0-3f2a9c81d4.zip".into(),
+        urls: vec!["https://ultimateota.d.miui.com/OS4.0.25.0.XEOCNXM/nuwa-ota_full-OS4.0.25.0.XEOCNXM-user-17.0-3f2a9c81d4.zip".into()],
         md5: "3f2a9c81d4e05b7a6c1e9d2f8b7a6c5d".into(),
         size: "7.1G".into(),
         length: Some(7_572_375_802),
@@ -1406,29 +1406,29 @@ fn whole_page(app: &mut App, f: &Fonts, info: &DeviceInfo) -> Canvas {
 
 /// Xiaomi 17 Ultra by Leica as `skyward info` read it on 2026-10-18 (the
 /// config supplies the SoC name, panel and screen size).
-fn nezha(cfg: &DeviceConfig) -> DeviceInfo {
+fn nuwa(cfg: &DeviceConfig) -> DeviceInfo {
     DeviceInfo {
-        model: "Xiaomi 17 Ultra by Leica".into(),
+        model: "Xiaomi 13 Pro".into(),
         codename: cfg.device.codename.clone(),
         soc: cfg.device.soc.clone(),
-        cpu: Cpu { cores: 8, max_khz: Some(4_608_000) },
-        ram_kib: 15_472_464,
+        cpu: Cpu { cores: 8, max_khz: Some(3_187_200) },
+        ram_kib: 11_932_672,
         panel: Some((cfg.display.width, cfg.display.height)),
         screen: cfg.display.diagonal,
-        os_version: Some("OS4.0.4.0.XPACNXM".into()),
+        os_version: Some("OS4.0.24.0.XEOCNXM".into()),
         android: Some("17".into()),
         locale: Some("zh-CN".into()),
         security_patch: Some(PatchLevel { year: 2026, month: 10, day: 1 }),
-        kernel: "6.12.69-android16-6-g43b5ab7e247d-abogki561813157-4k".into(),
-        storage: Storage { total: 1_039_535_157_248, free: Some(620_652_802_048) },
+        kernel: "5.15.178-android13-8-g9c4d2e71f0a2-ab10502974-4k".into(),
+        storage: Storage { total: 256_087_425_024, free: Some(231_500_000_000) },
         battery: Some(Battery {
             level: 95,
             charge: Charge::Charging,
             temp: Some(350),
             health: Some("Good".into()),
             cycles: Some(300),
-            design: Some(6_800_000),
-            full: Some(6_543_000),
+            design: Some(4_820_000),
+            full: Some(4_655_000),
             voltage: Some(4_442_000),
             // The recovery has no fast charging handshake with the charger.
             quick: false,
