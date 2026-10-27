@@ -97,7 +97,7 @@ groups = ["root", "drmrpc"]
 # among its odm manifests.
 [[service]]
 path = "/odm/bin/hw/android.hardware.weaver-service.nxp-qti"
-libraries = ["/odm/lib64", "/system/lib64", "/vendor/lib64", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap"]
+libraries = ["/odm/lib64", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap", "/system/lib64", "/vendor/lib64"]
 ready_service = "android.hardware.weaver.IWeaver/default"
 description = "/odm/etc/vintf/manifest/android.hardware.weaver-service.nxp.xml"
 user = "root"
