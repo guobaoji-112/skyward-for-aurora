@@ -94,6 +94,7 @@ groups = ["root", "drmrpc"]
 # and hands the driver the responses it waits for.
 [[service]]
 path = "/odm/bin/tee-supplicant"
+libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap"]
 user = "root"
 groups = ["root", "system", "nfc", "drmrpc"]
 capabilities = ["SYS_RAWIO"]
@@ -103,7 +104,7 @@ capabilities = ["SYS_RAWIO"]
 # partition carries.
 [[service]]
 path = "/vendor/bin/hw/android.hardware.secure_element-service.qti"
-libraries = ["/system/lib64", "/vendor/lib64", "/vendor/lib64/hw", "/mnt/system/system/lib64"]
+libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64", "/vendor/lib64/hw", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap"]
 user = "system"
 groups = ["system", "nfc"]
 
