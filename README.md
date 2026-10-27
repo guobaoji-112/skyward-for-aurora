@@ -11,7 +11,6 @@ upstream project supports, see [kirklin/skyward](https://github.com/kirklin/skyw
 ![Skyward running on the Xiaomi 13 Pro: About, home, settings and the file manager](docs/overview.webp)
 
 <p align="center">
-  <img src="assets/home.png" width="30%" alt="Home">
   <img src="assets/settings-dark.png" width="30%" alt="Settings in dark mode">
   <img src="assets/time-zone.png" width="30%" alt="Time zone">
 </p>
