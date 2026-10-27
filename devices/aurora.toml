@@ -83,6 +83,10 @@ path = "/kmlibs/km.sh"
 args = ["/vendor/bin/hw/android.hardware.gatekeeper-service-qti"]
 libraries = ["/kmlibs", "/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
 ready_service = "android.hardware.gatekeeper.IGatekeeper/default"
+# This phone describes its gatekeeper not among the manifest fragments but
+# in its own SoC's manifest file, which the service directory asks for
+# before it takes the registration.
+description = "/vendor/etc/vintf/manifest_pineapple.xml"
 user = "root"
 groups = ["root", "drmrpc"]
 
