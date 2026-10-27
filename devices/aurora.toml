@@ -1,28 +1,3 @@
-[device]
-codename = "aurora"
-brand = "Xiaomi"
-model = "Xiaomi 14 Ultra"
-ab = true
-soc = { hans = "第三代骁龙®8移动平台", hant = "Snapdragon® 8 Gen 3 行動平台", en = "Snapdragon® 8 Gen 3 Mobile Platform" }
-os_version_prop = "ro.mi.os.version.incremental"
-
-[display]
-width = 1440
-height = 3200
-density = 560
-
-[modules]
-sources = ["vendor_boot", "vendor_dlkm", "vendor", "system_dlkm"]
-load = ["synaptics_tcm2"]
-
-# The touchscreen's raw frames: told through Xiaomi's touch layer, the
-# driver reports positions itself, as the phone's own touch processing
-# is not there to do it.
-[touch]
-writes = [{ path = "/sys/class/touch/touch_dev/enable_touch_raw", value = "0" }]
-
-# Stage the shared libraries the key service asks for that the recovery's
-# own library folder does not carry, out of the installed system's.
 [[service]]
 path = "/system/bin/sh"
 args = ["-c", "mkdir -p /kmlibs && cp /mnt/system/system/lib64/libhardware.so /mnt/system/system/lib64/libvndksupport.so /mnt/system/system/lib64/libnetutils.so /mnt/system/system/lib64/bootstrap/libdl_android.so /kmlibs/ && printf '[recovery]\\nnamespace.default.isolated = false\\n' > /kmlibs/ld.config.txt && printf '#!/system/bin/sh\\nexport LD_CONFIG_FILE=/kmlibs/ld.config.txt\\nexec \"$@\"\\n' > /kmlibs/km.sh && chmod 755 /kmlibs/km.sh && V=$(ls -d /system_dlkm/lib/modules/*/kernel/net/rfkill 2>/dev/null | head -1) && mount --bind $V/rfkill.ko /system_dlkm/flatten/lib/modules/rfkill.ko"]
@@ -30,13 +5,6 @@ oneshot = true
 user = "root"
 groups = ["root"]
 
-[[service]]
-path = "/vendor/bin/qseecomd"
-libraries = ["/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
-sockets = ["notify-topology"]
-ready_property = "vendor.sys.listeners.registered"
-user = "root"
-groups = ["root", "drmrpc"]
 
 [[service]]
 path = "/kmlibs/km.sh"
@@ -46,12 +14,6 @@ ready_service = "android.hardware.security.keymint.IKeyMintDevice/default"
 user = "root"
 groups = ["root", "drmrpc"]
 
-[[service]]
-path = "/mnt/system_ext/bin/hwservicemanager"
-libraries = ["/mnt/system/system/lib64/bootstrap", "/mnt/system/system/lib64", "/mnt/system_ext/lib64"]
-ready_property = "hwservicemanager.ready"
-user = "system"
-groups = ["system", "readproc"]
 
 [[service]]
 path = "/kmlibs/km.sh"
@@ -60,6 +22,33 @@ libraries = ["/kmlibs", "/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/
 ready_service = "android.hardware.gatekeeper.IGatekeeper/default"
 user = "root"
 groups = ["root", "drmrpc"]
+
+
+[[service]]
+path = "/vendor/bin/ssgtzd"
+libraries = ["/kmlibs", "/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
+sockets = ["ssgtzd", "ssgtzd_opener"]
+user = "root"
+groups = ["root", "system", "drmrpc"]
+capabilities = ["WAKE_ALARM", "BLOCK_SUSPEND"]
+
+
+[[service]]
+path = "/mnt/system_ext/bin/hwservicemanager"
+libraries = ["/mnt/system/system/lib64/bootstrap", "/mnt/system/system/lib64", "/mnt/system_ext/lib64"]
+ready_property = "hwservicemanager.ready"
+user = "system"
+groups = ["system", "readproc"]
+
+
+[[service]]
+path = "/vendor/bin/qseecomd"
+libraries = ["/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
+sockets = ["notify-topology"]
+ready_property = "vendor.sys.listeners.registered"
+user = "root"
+groups = ["root", "drmrpc"]
+
 
 [[service]]
 path = "/vendor/bin/hw/android.hardware.boot-service.qti"
@@ -73,14 +62,6 @@ groups = ["root"]
 
 # The secure service gateway: registers the smcinvoke server the TEE
 # calls back into for system services.
-[[service]]
-path = "/vendor/bin/ssgtzd"
-libraries = ["/kmlibs", "/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
-sockets = ["ssgtzd", "ssgtzd_opener"]
-user = "root"
-groups = ["root", "system", "drmrpc"]
-capabilities = ["WAKE_ALARM", "BLOCK_SUSPEND"]
-
 [wlan]
 modules = ["rfkill", "qca_cld3_kiwi_v2"]
 writes = [{ path = "/sys/kernel/cnss/fs_ready", value = "1" }]
