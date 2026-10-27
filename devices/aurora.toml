@@ -45,6 +45,16 @@ ready_property = "vendor.sys.listeners.registered"
 user = "root"
 groups = ["root", "drmrpc"]
 
+# The HLOS side of the secure world's way back in: on this generation the
+# calls the applet makes out of the secure world land on the server this
+# daemon registers, not on a qseecomd listener's. Without it the key
+# service hangs on callbacks nobody answers.
+[[service]]
+path = "/vendor/bin/hlosminkdaemon"
+user = "system"
+groups = ["system", "oem_2912", "wakelock"]
+capabilities = ["WAKE_ALARM", "BLOCK_SUSPEND"]
+
 # The secure service gateway: the TEE calls back into the server it
 # registers for system services.
 [[service]]
