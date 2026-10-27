@@ -47,8 +47,8 @@ unzip it, and flash the image inside to the recovery partition of the slot the
 phone runs from, with the phone in fastboot mode:
 
 ```sh
-unzip skyward-aurora-v1.0-OS3.0.308.0.WNACNXM.zip
-fastboot flash recovery skyward-aurora-v1.0-OS3.0.308.0.WNACNXM.img
+unzip skyward-aurora-v30-OS3.0.308.0.WNACNXM.zip
+fastboot flash recovery skyward-aurora-v30-OS3.0.308.0.WNACNXM.img
 fastboot reboot recovery
 ```
 
