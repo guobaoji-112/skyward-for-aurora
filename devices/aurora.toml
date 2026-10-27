@@ -20,7 +20,7 @@ writes = [{ path = "/sys/class/touch/touch_dev/enable_touch_raw", value = "0" }]
 # signature the kernel does not take.
 [[service]]
 path = "/system/bin/sh"
-args = ["-c", "mkdir -p /kmlibs && cp /mnt/system/system/lib64/libhardware.so /mnt/system/system/lib64/libvndksupport.so /mnt/system/system/lib64/libnetutils.so /mnt/system/system/lib64/bootstrap/libdl_android.so /kmlibs/ && printf '[recovery]\\nnamespace.default.isolated = false\\n' > /kmlibs/ld.config.txt && printf '#!/system/bin/sh\\nexport LD_CONFIG_FILE=/kmlibs/ld.config.txt\\nexec \"$@\"\\n' > /kmlibs/km.sh && chmod 755 /kmlibs/km.sh && V=$(ls -d /system_dlkm/lib/modules/*/kernel/net/rfkill 2>/dev/null | head -1) && mount --bind $V/rfkill.ko /system_dlkm/flatten/lib/modules/rfkill.ko"]
+args = ["-c", "mkdir -p /kmlibs && cp /mnt/system/system/lib64/libhardware.so /mnt/system/system/lib64/libvndksupport.so /mnt/system/system/lib64/libnetutils.so /mnt/system/system/lib64/bootstrap/libdl_android.so /kmlibs/ && printf '[recovery]\\nnamespace.default.isolated = false\\n' > /kmlibs/ld.config.txt && printf '<manifest version=\"1.0\" type=\"device\"><hal format=\"aidl\"><name>android.hardware.weaver</name><version>2</version><fqname>IWeaver/default</fqname></hal></manifest>' > /kmlibs/weaver.xml && printf '#!/system/bin/sh\\nexport LD_CONFIG_FILE=/kmlibs/ld.config.txt\\nexec \"$@\"\\n' > /kmlibs/km.sh && chmod 755 /kmlibs/km.sh && V=$(ls -d /system_dlkm/lib/modules/*/kernel/net/rfkill 2>/dev/null | head -1) && mount --bind $V/rfkill.ko /system_dlkm/flatten/lib/modules/rfkill.ko"]
 oneshot = true
 user = "root"
 groups = ["root"]
@@ -89,38 +89,6 @@ ready_service = "android.hardware.gatekeeper.IGatekeeper/default"
 description = "/vendor/etc/vintf/manifest_pineapple.xml"
 user = "root"
 groups = ["root", "drmrpc"]
-
-# The TEE supplicant: it keeps the secure world's file storage on persist
-# and hands the driver the responses it waits for.
-[[service]]
-path = "/odm/bin/tee-supplicant"
-libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap"]
-user = "root"
-groups = ["root", "system", "nfc", "drmrpc"]
-capabilities = ["SYS_RAWIO"]
-
-# The secure element service: the weaver reads its slot through the secure
-# element this opens, and its applet comes from the firmware the modem
-# partition carries.
-[[service]]
-path = "/vendor/bin/hw/android.hardware.secure_element-service.qti"
-libraries = ["/kmlibs", "/system/lib64", "/vendor/lib64", "/vendor/lib64/hw", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap"]
-user = "system"
-groups = ["system", "nfc"]
-
-# The weaver: the recorded protector's secret is bound to a slot of the
-# secure element, and this is what unseals the slot. Its init script names
-# an account the recovery has not, and run as that it ends at once; as root
-# the same program stays up, as on the K100 Pro Max. The phone describes it
-# among its odm manifests.
-[[service]]
-path = "/kmlibs/km.sh"
-args = ["/odm/bin/hw/android.hardware.weaver-service.nxp-qti"]
-libraries = ["/odm/lib64", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap", "/system/lib64", "/vendor/lib64"]
-ready_service = "android.hardware.weaver.IWeaver/default"
-description = "/odm/etc/vintf/manifest/android.hardware.weaver-service.nxp.xml"
-user = "root"
-groups = ["root", "system", "drmrpc"]
 
 # The boot control, which says which slot the bootloader starts next and
 # switches it. It comes last: the phone is usable without it.
