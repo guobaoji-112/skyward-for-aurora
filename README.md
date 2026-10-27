@@ -34,6 +34,10 @@ upstream project supports, see [kirklin/skyward](https://github.com/kirklin/skyw
 | --- | --- | --- |
 | Xiaomi 14 Ultra | `aurora` | OS3.0.308.0.WNACNXM (Android 16) |
 
+Decryption of the data partition works from **`aurora-v34`** on. Earlier tags
+exist on this fork from when the key service chain was still being worked out;
+they boot, but they do not open `/data`.
+
 The recovery image is built on the stock recovery of OS3.0.308.0.WNACNXM, the
 build `devices/aurora.toml` names.
 
@@ -47,8 +51,8 @@ unzip it, and flash the image inside to the recovery partition of the slot the
 phone runs from, with the phone in fastboot mode:
 
 ```sh
-unzip skyward-aurora-v30-OS3.0.308.0.WNACNXM.zip
-fastboot flash recovery skyward-aurora-v30-OS3.0.308.0.WNACNXM.img
+unzip skyward-aurora-v34-OS3.0.308.0.WNACNXM.zip
+fastboot flash recovery skyward-aurora-v34-OS3.0.308.0.WNACNXM.img
 fastboot reboot recovery
 ```
 
