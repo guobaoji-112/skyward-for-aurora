@@ -51,6 +51,7 @@ groups = ["root", "drmrpc"]
 # service hangs on callbacks nobody answers.
 [[service]]
 path = "/vendor/bin/hlosminkdaemon"
+libraries = ["/system/lib64", "/vendor/lib64"]
 user = "system"
 groups = ["system", "oem_2912", "wakelock"]
 capabilities = ["WAKE_ALARM", "BLOCK_SUSPEND"]
@@ -128,6 +129,16 @@ supplicant = "/vendor/bin/hw/wpa_supplicant"
 libraries = ["/system/lib64", "/vendor/lib64"]
 service = "android.hardware.wifi.supplicant.ISupplicant/default"
 probe = "http://connect.rom.miui.com/generate_204"
+
+# The secure world keeps its own files (the applets the key service and
+# the credential service ask for) in the modem partition, which qseecomd's
+# listener mounts at /vendor/firmware_mnt and loads them from as they are
+# first asked for; without the mount they are not there.
+[firmware]
+partition = "modem"
+
+[partitions]
+mounted = ["persist"]
 
 [update]
 server = "https://update.miui.com/updates/miotaV3.php"
