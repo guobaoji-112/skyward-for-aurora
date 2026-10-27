@@ -90,16 +90,18 @@ description = "/vendor/etc/vintf/manifest_pineapple.xml"
 user = "root"
 groups = ["root", "drmrpc"]
 
-# The directory the older HIDL services register with. A recovery carries
-# none of it, so this is the installed system's own program against the
-# installed system's libraries; it reports ready by the property those
-# services wait on.
+# The weaver: the recorded protector's secret is bound to a slot of the
+# secure element, and this is what unseals the slot. Its init script names
+# an account the recovery has not, and run as that it ends at once; as root
+# the same program stays up, as on the K100 Pro Max. The phone describes it
+# among its odm manifests.
 [[service]]
-path = "/mnt/system_ext/bin/hwservicemanager"
-libraries = ["/mnt/system/system/lib64/bootstrap", "/mnt/system/system/lib64", "/mnt/system_ext/lib64"]
-ready_property = "hwservicemanager.ready"
-user = "system"
-groups = ["system", "readproc"]
+path = "/odm/bin/hw/android.hardware.weaver-service.nxp-qti"
+libraries = ["/odm/lib64", "/system/lib64", "/vendor/lib64", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap"]
+ready_service = "android.hardware.weaver.IWeaver/default"
+description = "/odm/etc/vintf/manifest/android.hardware.weaver-service.nxp.xml"
+user = "root"
+groups = ["root", "system", "drmrpc"]
 
 # The boot control, which says which slot the bootloader starts next and
 # switches it. It comes last: the phone is usable without it.
