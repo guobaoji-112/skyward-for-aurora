@@ -1,16 +1,15 @@
 ![Skyward Recovery](assets/hero.jpg)
 
-# Skyward for nuwa
+# Skyward for aurora
 
 [English](README.md) | 简体中文
 
-Skyward 是使用 Rust 编写的 recovery，从零开始编写。这个分支只服务一台手机：**小米 13 Pro**（代号 `nuwa`）。上游项目支持的其他机型见 [kirklin/skyward](https://github.com/kirklin/skyward)。
-
-![在小米 13 Pro 上运行的 Skyward：关于、主页、设置和文件管理](docs/overview.webp)
+Skyward 是使用 Rust 编写的 recovery，从零开始编写。这个分支只服务一台手机：**小米 14 Ultra**（代号 `aurora`）。上游项目支持的其他机型见 [kirklin/skyward](https://github.com/kirklin/skyward)。
 
 <p align="center">
-  <img src="assets/settings-dark.png" width="30%" alt="深色模式下的设置">
-  <img src="assets/time-zone.png" width="30%" alt="时区">
+  <img src="docs/aurora-home.webp" width="30%" alt="在小米 14 Ultra 上运行的 Skyward 主页">
+  <img src="docs/aurora-files.webp" width="30%" alt="文件管理">
+  <img src="docs/aurora-about.webp" width="30%" alt="关于">
 </p>
 
 ## 功能
@@ -31,17 +30,17 @@ Skyward 是使用 Rust 编写的 recovery，从零开始编写。这个分支只
 
 | 机型 | 代号 | 测试的系统版本 |
 | --- | --- | --- |
-| 小米 13 Pro | `nuwa` | OS4.0.24.0.XEOCNXM（Android 17） |
+| 小米 14 Ultra | `aurora` | OS3.0.308.0.WNACNXM（Android 16） |
 
-镜像基于原厂 OS3.0.311.0.WMBCNXM 的 recovery 构建，即 `devices/nuwa.toml` 中指定的版本。
+镜像基于原厂 OS3.0.308.0.WNACNXM 的 recovery 构建，即 `devices/aurora.toml` 中指定的版本。
 
 ## 安装
 
-Skyward 需要已解锁的 bootloader。从本仓库的 [Releases](https://github.com/pubglite55/skyward-for-nuwa/releases) 下载 zip（由 `nuwa-v*` 标签发布），文件名形如 `skyward-nuwa-<版本>-<原厂版本>`。使用 `SHA256SUMS.txt` 核对并解压之后，在手机处于 fastboot 模式的时候，把其中的镜像刷入当前运行槽位的 recovery 分区：
+Skyward 需要已解锁的 bootloader。从本仓库的 [Releases](https://github.com/guobaoji-112/skyward-for-aurora/releases) 下载 zip（由 `aurora-v*` 标签发布），文件名形如 `skyward-aurora-<版本>-<原厂版本>`。使用 `SHA256SUMS.txt` 核对并解压之后，在手机处于 fastboot 模式的时候，把其中的镜像刷入当前运行槽位的 recovery 分区：
 
 ```sh
-unzip skyward-nuwa-v1.1-OS3.0.311.0.WMBCNXM.zip
-fastboot flash recovery skyward-nuwa-v1.1-OS3.0.311.0.WMBCNXM.img
+unzip skyward-aurora-v1.0-OS3.0.308.0.WNACNXM.zip
+fastboot flash recovery skyward-aurora-v1.0-OS3.0.308.0.WNACNXM.img
 fastboot reboot recovery
 ```
 
@@ -63,20 +62,20 @@ cargo build --release -p skyward-pack
 打包工具从小米服务器上这个版本的完整更新包中取出原厂 recovery 分区，只读取这个分区所在的部分，并且按照设备配置文件核对 SHA-256：
 
 ```sh
-target/release/skyward-pack stock --config devices/nuwa.toml --out target/stock/nuwa/recovery.img
+target/release/skyward-pack stock --config devices/aurora.toml --out target/stock/aurora/recovery.img
 ```
 
 然后在它的基础上构建镜像：
 
 ```sh
 target/release/skyward-pack recovery \
-  --stock target/stock/nuwa/recovery.img \
+  --stock target/stock/aurora/recovery.img \
   --binary target/aarch64-linux-android/release/skyward \
-  --config devices/nuwa.toml \
+  --config devices/aurora.toml \
   --font resources/fonts/MiSansVF.ttf \
   --mono resources/fonts/KirkMono-Regular.ttf \
   --mono-license resources/fonts/KirkMono-OFL.txt \
-  --out target/skyward-nuwa.img
+  --out target/skyward-aurora.img
 ```
 
 测试和代码检查在电脑上运行；只在手机上运行的代码按照手机目标检查：
