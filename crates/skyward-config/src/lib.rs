@@ -581,13 +581,13 @@ mod tests {
 
     #[test]
     fn nuwa_names_no_libraries_of_its_own_for_logd() {
-        let cfg = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap();
+        let cfg = DeviceConfig::parse(include_str!("../tests/nuwa.toml")).unwrap();
         assert_eq!(cfg.logd, None, "the 13 Pro's recovery carries what its logd loads");
     }
 
     #[test]
     fn nuwa_clicks_with_a_waveform_its_driver_keeps() {
-        let cfg = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap();
+        let cfg = DeviceConfig::parse(include_str!("../tests/nuwa.toml")).unwrap();
         let haptics = cfg.haptics.expect("the 13 Pro has a motor");
         assert_eq!((haptics.click, haptics.resonance), (Some(0), None));
         assert_eq!(haptics.strength, Strength { lightest: 0.5, strongest: 1.0 });
@@ -665,7 +665,7 @@ mod tests {
 
     #[test]
     fn each_program_runs_as_its_init_script_runs_it() {
-        let cfg = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap();
+        let cfg = DeviceConfig::parse(include_str!("../tests/nuwa.toml")).unwrap();
         for s in &cfg.services {
             assert!(s.user.is_some(), "{} names the user its init script does", s.path);
         }
@@ -678,7 +678,7 @@ mod tests {
 
     #[test]
     fn the_phone_names_the_stock_build_its_recovery_is_made_on() {
-        let stock = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap().stock.expect("a stock build to build on");
+        let stock = DeviceConfig::parse(include_str!("../tests/nuwa.toml")).unwrap().stock.expect("a stock build to build on");
         assert_eq!(stock.version, "OS3.0.311.0.WMBCNXM");
         assert!(stock.package.ends_with(".zip") && stock.package.contains("/OS3.0.311.0.WMBCNXM/"), "{}", stock.package);
     }
@@ -716,7 +716,7 @@ mod tests {
 
     #[test]
     fn parses_nuwa() {
-        let cfg = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap();
+        let cfg = DeviceConfig::parse(include_str!("../tests/nuwa.toml")).unwrap();
         assert_eq!(cfg.device.codename, "nuwa");
         assert_eq!(cfg.device.os_version_prop, "ro.mi.os.version.incremental");
         let soc = cfg.device.soc.expect("nuwa names its SoC");
@@ -772,7 +772,7 @@ mod tests {
 
     #[test]
     fn the_phones_own_logs_are_folders_inside_the_data_partition() {
-        let cfg = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap();
+        let cfg = DeviceConfig::parse(include_str!("../tests/nuwa.toml")).unwrap();
         assert!(cfg.wipe.logs.contains(&"/data/vendor/diag".to_string()));
         assert!(DeviceConfig::parse("[device]\ncodename = \"x\"\n").unwrap().wipe.logs.is_empty(), "a phone may have none");
         for bad in ["/data", "/data/", "/metadata/logs", "data/log", "/data/../system"] {
@@ -783,7 +783,7 @@ mod tests {
 
     #[test]
     fn nuwa_brings_its_wlan_up_from_its_own_partitions() {
-        let cfg = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap();
+        let cfg = DeviceConfig::parse(include_str!("../tests/nuwa.toml")).unwrap();
         let wlan = cfg.wlan.expect("the 13 Pro's WLAN is described");
         assert_eq!(wlan.modules, ["qca_cld3_kiwi_v2"]);
         assert_eq!(wlan.writes, [Write { path: "/sys/kernel/cnss/fs_ready".into(), value: "1".into() }]);
@@ -819,7 +819,7 @@ mod tests {
 
     #[test]
     fn services_use_the_partitions_they_run_from() {
-        let cfg = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap();
+        let cfg = DeviceConfig::parse(include_str!("../tests/nuwa.toml")).unwrap();
         let [report, sensor, listeners, ..] = &cfg.services[..] else { panic!("nuwa keeps several programs running") };
         assert!(report.uses(Path::new("/odm")));
         assert!(sensor.uses(Path::new("/odm")));
