@@ -1,18 +1,17 @@
 ![Skyward Recovery](assets/hero.jpg)
 
-# Skyward for nuwa
+# Skyward for aurora
 
 English | [简体中文](README.zh-CN.md)
 
 Skyward is a recovery written in Rust, from scratch. This fork is dedicated to
-one phone: the **Xiaomi 13 Pro** (codename `nuwa`). For the other devices the
+one phone: the **Xiaomi 14 Ultra** (codename `aurora`). For the other devices the
 upstream project supports, see [kirklin/skyward](https://github.com/kirklin/skyward).
 
-![Skyward running on the Xiaomi 13 Pro: About, home, settings and the file manager](docs/overview.webp)
-
 <p align="center">
-  <img src="assets/settings-dark.png" width="30%" alt="Settings in dark mode">
-  <img src="assets/time-zone.png" width="30%" alt="Time zone">
+  <img src="docs/aurora-home.webp" width="30%" alt="Skyward home on the Xiaomi 14 Ultra">
+  <img src="docs/aurora-files.webp" width="30%" alt="File manager">
+  <img src="docs/aurora-about.webp" width="30%" alt="About">
 </p>
 
 ## Features
@@ -33,23 +32,23 @@ upstream project supports, see [kirklin/skyward](https://github.com/kirklin/skyw
 
 | Device | Codename | Tested system version |
 | --- | --- | --- |
-| Xiaomi 13 Pro | `nuwa` | OS4.0.24.0.XEOCNXM (Android 17) |
+| Xiaomi 14 Ultra | `aurora` | OS3.0.308.0.WNACNXM (Android 16) |
 
-The recovery image is built on the stock recovery of OS3.0.311.0.WMBCNXM, the
-build `devices/nuwa.toml` names.
+The recovery image is built on the stock recovery of OS3.0.308.0.WNACNXM, the
+build `devices/aurora.toml` names.
 
 ## Installing
 
 Skyward needs an unlocked bootloader. Download the zip from this repository's
-[Releases](https://github.com/pubglite55/skyward-for-nuwa/releases), which are
-published from tags named `nuwa-v*`. Each file is named
-`skyward-nuwa-<version>-<stock build>`. Check it against `SHA256SUMS.txt`,
+[Releases](https://github.com/guobaoji-112/skyward-for-aurora/releases), which are
+published from tags named `aurora-v*`. Each file is named
+`skyward-aurora-<version>-<stock build>`. Check it against `SHA256SUMS.txt`,
 unzip it, and flash the image inside to the recovery partition of the slot the
 phone runs from, with the phone in fastboot mode:
 
 ```sh
-unzip skyward-nuwa-v1.1-OS3.0.311.0.WMBCNXM.zip
-fastboot flash recovery skyward-nuwa-v1.1-OS3.0.311.0.WMBCNXM.img
+unzip skyward-aurora-v1.0-OS3.0.308.0.WNACNXM.zip
+fastboot flash recovery skyward-aurora-v1.0-OS3.0.308.0.WNACNXM.img
 fastboot reboot recovery
 ```
 
@@ -81,20 +80,20 @@ package on Xiaomi's server, reading only the part of the package the partition i
 in, and checks its SHA-256 against the device file:
 
 ```sh
-target/release/skyward-pack stock --config devices/nuwa.toml --out target/stock/nuwa/recovery.img
+target/release/skyward-pack stock --config devices/aurora.toml --out target/stock/aurora/recovery.img
 ```
 
 Then it builds the image on top of it:
 
 ```sh
 target/release/skyward-pack recovery \
-  --stock target/stock/nuwa/recovery.img \
+  --stock target/stock/aurora/recovery.img \
   --binary target/aarch64-linux-android/release/skyward \
-  --config devices/nuwa.toml \
+  --config devices/aurora.toml \
   --font resources/fonts/MiSansVF.ttf \
   --mono resources/fonts/KirkMono-Regular.ttf \
   --mono-license resources/fonts/KirkMono-OFL.txt \
-  --out target/skyward-nuwa.img
+  --out target/skyward-aurora.img
 ```
 
 Tests and lints run on the computer; what runs only on the phone is linted for it:
