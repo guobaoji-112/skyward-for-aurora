@@ -674,13 +674,9 @@ mod tests {
 
     #[test]
     fn the_phone_names_the_stock_build_its_recovery_is_made_on() {
-        for (text, version) in [
-            (include_str!("../../../devices/nuwa.toml"), "OS3.0.311.0.WMBCNXM"),
-        ] {
-            let stock = DeviceConfig::parse(text).unwrap().stock.expect("a stock build to build on");
-            assert_eq!(stock.version, version);
-            assert!(stock.package.ends_with(".zip") && stock.package.contains(&format!("/{version}/")), "{}", stock.package);
-        }
+        let stock = DeviceConfig::parse(include_str!("../../../devices/nuwa.toml")).unwrap().stock.expect("a stock build to build on");
+        assert_eq!(stock.version, "OS3.0.311.0.WMBCNXM");
+        assert!(stock.package.ends_with(".zip") && stock.package.contains("/OS3.0.311.0.WMBCNXM/"), "{}", stock.package);
     }
 
     #[test]
