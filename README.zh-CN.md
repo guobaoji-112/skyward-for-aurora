@@ -9,7 +9,6 @@ Skyward 是使用 Rust 编写的 recovery，从零开始编写。这个分支只
 ![在小米 13 Pro 上运行的 Skyward：关于、主页、设置和文件管理](docs/overview.webp)
 
 <p align="center">
-  <img src="assets/home.png" width="30%" alt="首页">
   <img src="assets/settings-dark.png" width="30%" alt="深色模式下的设置">
   <img src="assets/time-zone.png" width="30%" alt="时区">
 </p>
