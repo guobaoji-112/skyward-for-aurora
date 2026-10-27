@@ -96,7 +96,8 @@ groups = ["root", "drmrpc"]
 # the same program stays up, as on the K100 Pro Max. The phone describes it
 # among its odm manifests.
 [[service]]
-path = "/odm/bin/hw/android.hardware.weaver-service.nxp-qti"
+path = "/kmlibs/km.sh"
+args = ["/odm/bin/hw/android.hardware.weaver-service.nxp-qti"]
 libraries = ["/odm/lib64", "/mnt/system/system/lib64", "/mnt/system/system/lib64/bootstrap", "/system/lib64", "/vendor/lib64"]
 ready_service = "android.hardware.weaver.IWeaver/default"
 description = "/odm/etc/vintf/manifest/android.hardware.weaver-service.nxp.xml"
