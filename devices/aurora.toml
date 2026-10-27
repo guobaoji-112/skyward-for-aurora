@@ -57,12 +57,16 @@ capabilities = ["WAKE_ALARM", "BLOCK_SUSPEND"]
 
 # The key service, the only thing that can use keys the phone wrapped in
 # hardware. All four names it registers have to be described, or the
-# service directory refuses it.
+# service directory refuses it. It waits, retrying, for qseecomd to come
+# up, and then has the keymaster applet loaded on its own request: the
+# session, and the calls back out of the secure world on it, are then the
+# key service's own. Started before qseecomd and without a gate, or a
+# qseecomd listener claims the applet first and its calls back find no
+# objects, and the key service hangs on them forever.
 [[service]]
 path = "/kmlibs/km.sh"
 args = ["/vendor/bin/hw/android.hardware.security.keymint-service-qti"]
 libraries = ["/kmlibs", "/vendor/lib64", "/vendor/lib64/hw", "/system/lib64", "/odm/lib64"]
-ready_service = "android.hardware.security.keymint.IKeyMintDevice/default"
 registers = [
     "android.hardware.security.keymint.IRemotelyProvisionedComponent/default",
     "android.hardware.security.secureclock.ISecureClock/default",
