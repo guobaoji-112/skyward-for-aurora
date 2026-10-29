@@ -34,15 +34,15 @@ Skyward 是使用 Rust 编写的 recovery，从零开始编写。这个分支只
 
 镜像基于原厂 OS3.0.308.0.WNACNXM 的 recovery 构建，即 `devices/aurora.toml` 中指定的版本。
 
-**`aurora-v34` 起可以解密 data 分区。** 更早的 tag 是密钥服务链还没打通时的中间版本，能启动，但解不开 `/data`。
+**`aurora-v34` 起可以解密 data 分区。** 更早的 tag 是密钥服务链还没打通时的中间版本，能启动，但解不开 `/data`。**`aurora-v37`** 在同一套解密配置之上合并了上游 v0.1.2（含面板最大亮度修复），已真机验证。
 
 ## 安装
 
 Skyward 需要已解锁的 bootloader。从本仓库的 [Releases](https://github.com/guobaoji-112/skyward-for-aurora/releases) 下载 zip（由 `aurora-v*` 标签发布），文件名形如 `skyward-aurora-<版本>-<原厂版本>`。使用 `SHA256SUMS.txt` 核对并解压之后，在手机处于 fastboot 模式的时候，把其中的镜像刷入当前运行槽位的 recovery 分区：
 
 ```sh
-unzip skyward-aurora-v34-OS3.0.308.0.WNACNXM.zip
-fastboot flash recovery skyward-aurora-v34-OS3.0.308.0.WNACNXM.img
+unzip skyward-aurora-v37-OS3.0.308.0.WNACNXM.zip
+fastboot flash recovery skyward-aurora-v37-OS3.0.308.0.WNACNXM.img
 fastboot reboot recovery
 ```
 
